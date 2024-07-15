@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Untile - Tile flipping Hexagonal Puzzle Game</title>
+<style>
+    body {
+        background-color: black;
+        color: white;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+        padding: 10px;
+        box-sizing: border-box;
+        font-family: Arial, sans-serif;
+    }
+    #instruction {
+        margin-bottom: 10px;
+        text-align: center;
+    }
+    #game-container {
+        position: relative;
+        width: 1000px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    #game-canvas {
+        border: 1px solid black;
+        background-color: #000000;
+        margin-bottom: 10px;
+    }
+    #hexagon-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 1000px;
+        height: 550px;
+        pointer-events: auto;
+    }
+
+	.hexagon {
+		position: absolute;
+		transition: transform 0.2s;
+		transform-style: preserve-3d;
+		pointer-events: auto; 
+	}
+    .hexagon canvas {
+        position: absolute;
+        backface-visibility: hidden;
+    }
+    .hexagon canvas:nth-child(2) {
+        transform: rotateY(180deg);
+    }
+
+    #level-select {
+        margin-bottom: 10px;
+    }
+    #moves-display {
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+    button {
+        margin: 5px;
+        padding: 5px 10px;
+        font-size: 16px;
+        cursor: pointer;
+    }
+    select {
+        margin: 5px;
+        padding: 5px;
+        font-size: 16px;
+    }
+	.control-button {
+    cursor: pointer;
+    margin: 0 5px;
+    width: 80px;  
+    height: 80px; 
+	margin-top: -40px;
+}
+</style>
+</head>
+<body>
+	<div id="instruction" style="height: 20px; visibility: hidden;"><i>Click on the correct blank tile to flip the adjacent ones and clear the board.</i></div>
+    
+    <br>    
+    <div id="game-container">
+		<div id="stars-display" style="position: absolute; top: 10px; right: 10px; font-size: 20px;"></div>
+        <canvas id="game-canvas" width="1000" height="600"></canvas>
+        <div id="hexagon-container"></div>
+        <br>
+        <center>
+		<div id="button-container">
+			<img id="undo-btn" src="undo-button.png" alt="Undo" class="control-button" title="Undo last move">
+			<img id="reset-btn" src="restart-button.png" alt="Restart" class="control-button" title="Reset the current level">
+		</div>
+        <br><br>
+		<!-- ajouter le style="display: none; si on veut cacher le nombre de coups restants pour optimiser -->
+		<div id="moves-display"></div> 
+        Jump to <select id="level-select">
+        </select>
+		</center>
+    </div>
+    <script src="game.js"></script>
+    <script>
+        // Script pour initialiser le menu déroulant
+        const levelSelect = document.getElementById('level-select');
+        for (let i = 0; i < levels.length; i++) {
+            const option = document.createElement('option');
+            option.value = i;
+            option.textContent = `Level ${i + 1}`;
+            levelSelect.appendChild(option);
+        }
+
+        levelSelect.addEventListener('change', (e) => {
+            currentLevel = parseInt(e.target.value);
+            initLevel(currentLevel);
+        });
+    </script>
+</body>
+</html>

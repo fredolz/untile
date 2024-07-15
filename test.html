@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Untile - Test de rendu 3D</title>
+    <style>
+        body {
+            background-color: black;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            perspective: 1000px;
+        }
+        #test-canvas {
+            border: 1px solid cyan;
+        }
+        .hexagon {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            transition: transform 0.5s;
+            transform-style: preserve-3d;
+        }
+        .hexagon-front, .hexagon-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+        }
+        .hexagon-back {
+            transform: rotateY(180deg);
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container" style="position: relative; width: 400px; height: 400px;">
+        <canvas id="test-canvas" width="400" height="400"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('test-canvas');
+        const ctx = canvas.getContext('2d');
+        const gameContainer = document.getElementById('game-container');
+
+        const TILE_SIZE = 50;
+        const SMALL_GRID_SIZE = 7;
+
+        const smallHexPositions = [
+            {x: 0, y: -1},        // 0: Haut
+            {x: 0.866, y: -0.5},  // 1: Haut-droite
+            {x: -0.866, y: -0.5}, // 2: Haut-gauche
+            {x: 0, y: 0},         // 3: Centre
+            {x: 0.866, y: 0.5},   // 4: Bas-droite
+            {x: -0.866, y: 0.5},  // 5: Bas-gauche
+            {x: 0, y: 1}          // 6: Bas
+        ];
+
+        function drawHexagon(ctx, size, state) {
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const angle = (Math.PI / 3) * i;
+                const hx = size / 2 + size / 2 * Math.cos(angle);
+                const hy = size / 2 + size / 2 * Math.sin(angle);
+                if (i === 0) ctx.moveTo(hx, hy);
+                else ctx.lineTo(hx, hy);
+            }
+            ctx.closePath();
+            
+            const gradientAngle = Math.PI / 6;
+            const gradientStartX = size / 2 + size / 2 * Math.cos(gradientAngle);
+            const gradientStartY = size / 2 + size / 2 * Math.sin(gradientAngle);
+            const gradientEndX = size / 2 + size / 2 * Math.cos(gradientAngle + Math.PI);
+            const gradientEndY = size / 2 + size / 2 * Math.sin(gradientAngle + Math.PI);
+            
+            let gradient;
+            switch(state) {
+                case 0:
+                    ctx.fillStyle = '#101010';
+                    break;
+                case 1:
+                    gradient = ctx.createLinearGradient(gradientStartX, gradientStartY, gradientEndX, gradientEndY);
+                    gradient.addColorStop(0, '#12d8ee');
+                    gradient.addColorStop(1, '#ddfca0');
+                    ctx.fillStyle = gradient;
+                    break;
+                case 2:
+                    gradient = ctx.createLinearGradient(gradientStartX, gradientStartY, gradientEndX, gradientEndY);
+                    gradient.addColorStop(0, '#b74dd4');
+                    gradient.addColorStop(1, '#5e8bb5');
+                    ctx.fillStyle = gradient;
+                    break;
+                default:
+                    ctx.fillStyle = 'lightgray';
+            }
+            
+            ctx.fill();
+            ctx.strokeStyle = 'cyan';
+            ctx.stroke();
+        }
+
+        function createHexagonElement(x, y, size, state, index) {
+            const hexagon = document.createElement('div');
+            hexagon.className = 'hexagon';
+            hexagon.style.left = `${x - size / 2}px`;
+            hexagon.style.top = `${y - size / 2}px`;
+            hexagon.dataset.index = index;
+
+            const front = document.createElement('canvas');
+            front.width = size;
+            front.height = size;
+            front.className = 'hexagon-front';
+            drawHexagon(front.getContext('2d'), size, state);
+
+            const back = document.createElement('canvas');
+            back.width = size;
+            back.height = size;
+            back.className = 'hexagon-back';
+            drawHexagon(back.getContext('2d'), size, state === 1 ? 2 : 1);
+
+            hexagon.appendChild(front);
+            hexagon.appendChild(back);
+            return hexagon;
+        }
+
+        function drawGrid() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            
+            smallHexPositions.forEach((pos, index) => {
+                const x = centerX + pos.x * TILE_SIZE * 1.75;
+                const y = centerY + pos.y * TILE_SIZE * 1.75;
+                const hexagon = createHexagonElement(x, y, TILE_SIZE * 2, index === 3 ? 0 : 1, index);
+                gameContainer.appendChild(hexagon);
+            });
+        }
+
+        function rotateAdjacentTiles() {
+            const adjacentIndices = [0, 1, 2, 4, 5, 6];
+            adjacentIndices.forEach(index => {
+                const hexagon = gameContainer.querySelector(`.hexagon[data-index="${index}"]`);
+                const pos = smallHexPositions[index];
+                const angle = Math.atan2(pos.y, pos.x);
+                
+                // Calculer l'axe de rotation (inversé par rapport à la version précédente)
+                const rotationAxis = [-Math.sin(angle), Math.cos(angle), 0];
+                
+                // Appliquer la rotation (angle négatif pour inverser le sens)
+                hexagon.style.transform = `rotate3d(${rotationAxis.join(',')}, -180deg)`;
+            });
+        }
+
+        drawGrid();
+
+        gameContainer.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            
+            if (Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2) < TILE_SIZE) {
+                rotateAdjacentTiles();
+            }
+        });
+    </script>
+</body>
+</html>
