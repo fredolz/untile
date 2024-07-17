@@ -16,6 +16,7 @@ let currentLevel = 0;
 let remainingMoves;
 let isLevelTransition = false;
 let isTransitioning = false;
+let rotationAngle = 0;
 
 // Définition des niveaux
 
@@ -80,6 +81,18 @@ const levels = [
   { grid: [4,5,5,4,2,4,5,5,4,4,4,6,6,4,1,2,6,5,4], optimalMoves: 5, difficulty: 'hard'  }, //lvl 58 (67 dans doc de LD) 
   { grid: [4,5,6,2,4,5,6,1,4,5,4,1,6,5,4,6,6,5,2], optimalMoves: 6, difficulty: 'hard'  }, //lvl 59 (68 dans doc de LD) 
   { grid: [5,2,1,6,5,5,5,6,4,4,4,6,5,5,6,6,2,1,6], optimalMoves: 7, difficulty: 'hard'  }, //lvl 60 (69 dans doc de LD) 
+  { grid: [0,0,0,1,1,0,1,0,0,7,0,0,0,1,0,0,0,0,0], optimalMoves: 2, difficulty: 'Tutorial'  }, //lvl 61 introduction de la tuile rotative 
+  { grid: [0,1,1,0,0,0,0,1,0,7,0,1,0,0,0,0,1,1,0], optimalMoves: 3, difficulty: 'easy'  }, //lvl 62
+  { grid: [0,0,0,0,0,0,0,0,0,7,0,0,0,1,0,1,0,0,0], optimalMoves: 3, difficulty: 'easy'  }, //lvl 63
+  { grid: [1,0,0,1,1,0,0,0,0,7,0,1,0,1,0,0,0,0,1], optimalMoves: 3, difficulty: 'easy'  }, //lvl 64
+  { grid: [0,1,1,0,0,0,0,0,0,7,0,0,0,0,0,0,1,1,0], optimalMoves: 5, difficulty: 'easy'  }, //lvl 65
+  { grid: [1,0,1,1,0,7,0,0,0,0,0,0,0,7,0,1,1,0,1], optimalMoves: 5, difficulty: 'medium'  }, //lvl 66
+  { grid: [1,1,0,0,7,0,0,1,1,0,1,7,7,1,0,1,1,1,0], optimalMoves: 6, difficulty: 'medium'  }, //lvl 67
+  { grid: [1,1,0,0,7,1,7,0,1,0,0,0,1,0,1,1,0,0,0], optimalMoves: 4, difficulty: 'medium'  }, //lvl 68
+  { grid: [0,1,1,1,7,0,0,1,1,7,1,0,0,0,1,0,1,1,0], optimalMoves: 5, difficulty: 'medium'  }, //lvl 69
+  { grid: [0,0,1,0,1,1,7,7,1,7,0,0,1,0,0,0,0,1,0], optimalMoves: 6, difficulty: 'medium'  }, //lvl 70
+  { grid: [0,1,0,0,0,0,2,0,2,7,0,0,0,0,0,0,1,0,0], optimalMoves: 3, difficulty: 'easy'  }, //lvl 71
+  { grid: [1,0,1,1,1,0,2,0,1,7,0,0,2,0,0,0,1,1,0], optimalMoves: 5, difficulty: 'medium'  }, //lvl 72
   
 ];
 
@@ -229,6 +242,13 @@ function drawHexagon(ctx, x, y, size, state) {
             ctx.stroke();
             ctx.restore();
             break;
+		case 7: // Nouvelle tuile avec cercle animé
+            ctx.fillStyle = '#101010';
+            ctx.fill();
+            ctx.strokeStyle = 'cyan';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            break;
         default:
             ctx.fillStyle = 'lightgray';
     }
@@ -261,6 +281,7 @@ function drawHexagon(ctx, x, y, size, state) {
 
 function createHexagonElement(x, y, size, state, index, isNeutral = false) {
     const hexagon = document.createElement('div');
+	hexagon.dataset.state = state;
     hexagon.className = 'hexagon';
     hexagon.style.left = `${x - size / 2}px`;
     hexagon.style.top = `${y - size / 2}px`;
@@ -272,6 +293,12 @@ function createHexagonElement(x, y, size, state, index, isNeutral = false) {
     front.width = size;
     front.height = size;
     drawHexagon(front.getContext('2d'), size / 2, size / 2, size / 2, state);
+	
+	
+    if (state === 7) {
+        drawRotationSymbol(front.getContext('2d'), size / 2, size / 2, size / 2);
+    }
+	
     hexagon.appendChild(front);
 
     if (isNeutral) {
@@ -686,6 +713,144 @@ function animateFlipDiagonal(tileIndex, getDiagonalTiles) {
     });
 }
 
+function drawRotationSymbol(ctx, x, y, size) {
+    const circleRadius = size * 0.6;
+    const dotRadius = 3;
+    
+    // Dessiner le grand cercle
+    ctx.beginPath();
+    ctx.arc(x, y, circleRadius, 0, Math.PI * 2);
+    ctx.strokeStyle = 'cyan';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // Calculer la position du point en rotation
+    const dotX = x + circleRadius * Math.cos(rotationAngle);
+    const dotY = y + circleRadius * Math.sin(rotationAngle);
+    
+    // Dessiner le point
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, dotRadius, 0, Math.PI * 2);
+    ctx.fillStyle = 'cyan';
+    ctx.fill();
+}
+
+function animateRotationSymbol() {
+    const hexagons = document.querySelectorAll('.hexagon');
+    hexagons.forEach(hexagon => {
+        const canvas = hexagon.querySelector('canvas');
+        const ctx = canvas.getContext('2d');
+        const state = parseInt(hexagon.dataset.state);
+        
+        if (state === 7) {
+            const size = canvas.width / 2;
+            const circleRadius = size * 0.6; // Grand cercle
+            const dotRadius = 3; // Taille du point en pixels
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawHexagon(ctx, size, size, size, state);
+            
+            ctx.save();
+            ctx.translate(size, size);
+            
+            // Dessiner le grand cercle
+            ctx.beginPath();
+            ctx.arc(0, 0, circleRadius, 0, Math.PI * 2);
+            ctx.strokeStyle = 'cyan';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Calculer la position du point en rotation
+            const dotX = circleRadius * Math.cos(rotationAngle);
+            const dotY = circleRadius * Math.sin(rotationAngle);
+            
+            // Dessiner le point
+            ctx.beginPath();
+            ctx.arc(dotX, dotY, dotRadius, 0, Math.PI * 2);
+            ctx.fillStyle = 'cyan';
+            ctx.fill();
+            
+            ctx.restore();
+        }
+    });
+    
+    rotationAngle += 0.05;
+    if (rotationAngle >= Math.PI * 2) {
+        rotationAngle = 0;
+    }
+    
+    requestAnimationFrame(animateRotationSymbol);
+}
+
+function animateRotation(tileIndex) {
+    return new Promise(resolve => {
+        isFlipping = true;
+        const adjacentTiles = getAdjacentTiles(tileIndex);
+        const clickedPos = isSmallGrid(currentLevel) ? smallHexPositions[tileIndex] : largeHexPositions[tileIndex];
+        
+        const tilesToRotate = adjacentTiles.sort((a, b) => {
+            const posA = isSmallGrid(currentLevel) ? smallHexPositions[a] : largeHexPositions[a];
+            const posB = isSmallGrid(currentLevel) ? smallHexPositions[b] : largeHexPositions[b];
+            const angleA = Math.atan2(posA.y - clickedPos.y, posA.x - clickedPos.x);
+            const angleB = Math.atan2(posB.y - clickedPos.y, posB.x - clickedPos.x);
+            return angleA - angleB;
+        });
+        
+        const duration = 800; // ms
+        const startTime = Date.now();
+
+        const tilePositions = tilesToRotate.map((index, i) => {
+            const startPos = isSmallGrid(currentLevel) ? smallHexPositions[index] : largeHexPositions[index];
+            const endIndex = (i + 1) % tilesToRotate.length;
+            const endPos = isSmallGrid(currentLevel) ? smallHexPositions[tilesToRotate[endIndex]] : largeHexPositions[tilesToRotate[endIndex]];
+            return { start: startPos, end: endPos };
+        });
+
+        // Nouvelle fonction d'accélération plus agressive
+        function customEase(t) {
+            return 1 - Math.pow(1 - t, 7);
+        }
+
+        function moveStep() {
+            const elapsedTime = Date.now() - startTime;
+            const rawProgress = Math.min(elapsedTime / duration, 1);
+            const progress = customEase(rawProgress);
+
+            if (rawProgress < 1) {
+                tilesToRotate.forEach((index, i) => {
+                    const hexagon = hexagonContainer.querySelector(`.hexagon[data-index="${index}"]`);
+                    if (hexagon) {
+                        const { start, end } = tilePositions[i];
+                        const currentX = start.x + (end.x - start.x) * progress;
+                        const currentY = start.y + (end.y - start.y) * progress;
+                        
+                        const moveX = (currentX - start.x) * TILE_SIZE * 1.75;
+                        const moveY = (currentY - start.y) * TILE_SIZE * 1.75;
+                        
+                        hexagon.style.transform = `translate(${moveX}px, ${moveY}px)`;
+                    }
+                });
+
+                requestAnimationFrame(moveStep);
+            } else {
+                rotateAdjacentTiles(tileIndex);
+                drawGrid();
+                flipSound.currentTime = 0;
+                flipSound.play().then(() => {
+                    isFlipping = false;
+                    resolve();
+                }).catch(error => {
+                    console.log("Erreur lors de la lecture du son de flip :", error);
+                    isFlipping = false;
+                    resolve();
+                });
+            }
+        }
+
+        moveStep();
+    });
+}
+
+
 function flipDiagonalTiles(tileIndex, getDiagonalTiles) {
     const diagonalTiles = getDiagonalTiles(tileIndex);
 	const newState = gameState[tileIndex]; // L'état de la tuile cliquée (5 ou 6)
@@ -792,12 +957,18 @@ function updateHexagonStates() {
         const frontCtx = front.getContext('2d');
         frontCtx.clearRect(0, 0, front.width, front.height);
         drawHexagon(frontCtx, front.width / 2, front.height / 2, front.width / 2, gameState[index]);
+        
+        if (gameState[index] === 7) {
+            drawRotationSymbol(frontCtx, front.width / 2, front.height / 2, front.width / 2);
+        }
+        
         if (back) {
             const backCtx = back.getContext('2d');
             backCtx.clearRect(0, 0, back.width, back.height);
             drawHexagon(backCtx, back.width / 2, back.height / 2, back.width / 2, (gameState[index] + 1) % 3);
         }
         hexagon.style.transform = 'none'; // Réinitialiser la transformation
+        hexagon.dataset.state = gameState[index]; // Mettre à jour l'attribut data-state
     });
     drawLevelText();
 }
@@ -807,7 +978,13 @@ async function handleClick(x, y) {
 
     const clickedTile = getTileFromCoordinates(x, y);
     if (clickedTile !== -1) {
-        if (gameState[clickedTile] === 4) { // Tuile neutre verticale
+        if (gameState[clickedTile] === 7) { // Nouvelle tuile de rotation
+            history.push([...gameState]);
+            await animateRotation(clickedTile);
+            remainingMoves--;
+            updateMovesDisplay();
+            await checkWinCondition();
+        } else if (gameState[clickedTile] === 4) {
             history.push([...gameState]);
             await animateFlipVerticalColumn(clickedTile);
             remainingMoves--;
@@ -923,6 +1100,34 @@ function flipVerticalColumnTiles(tileIndex) {
         }
     });
 }
+
+
+function rotateAdjacentTiles(tileIndex) {
+    const adjacentTiles = getAdjacentTiles(tileIndex);
+    
+    // Si nous n'avons pas assez de tuiles adjacentes pour faire une rotation, on ne fait rien
+    if (adjacentTiles.length < 3) return;
+
+    // Trouver l'ordre de rotation en fonction de la position relative des tuiles adjacentes
+    const clickedPos = isSmallGrid(currentLevel) ? smallHexPositions[tileIndex] : largeHexPositions[tileIndex];
+    const sortedTiles = adjacentTiles.sort((a, b) => {
+        const posA = isSmallGrid(currentLevel) ? smallHexPositions[a] : largeHexPositions[a];
+        const posB = isSmallGrid(currentLevel) ? smallHexPositions[b] : largeHexPositions[b];
+        const angleA = Math.atan2(posA.y - clickedPos.y, posA.x - clickedPos.x);
+        const angleB = Math.atan2(posB.y - clickedPos.y, posB.x - clickedPos.x);
+        return angleA - angleB;
+    });
+
+    // Sauvegarder les états actuels
+    const states = sortedTiles.map(index => gameState[index]);
+    
+    // Effectuer la rotation
+    for (let i = 0; i < sortedTiles.length; i++) {
+        const prevIndex = (i - 1 + sortedTiles.length) % sortedTiles.length;
+        gameState[sortedTiles[i]] = states[prevIndex];
+    }
+}
+
 
 function getTileFromCoordinates(x, y) {
     const centerX = canvas.width / 2;
@@ -1226,7 +1431,7 @@ function showFinalVictoryScreen() {
             ctx.fillStyle = 'white';
             ctx.font = 'bold 30px Arial, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('Congratulations, you finished Untile v0.5!', centerX, 40);
+            ctx.fillText('Congratulations, you finished Untile v0.6!', centerX, 40);
 
             // Afficher le texte "Perfect score" si le score est maximal
             if (totalStars === maxStars) {
@@ -1297,7 +1502,7 @@ function showFinalVictoryScreen() {
 
 
 async function checkWinCondition() {
-    if (gameState.every(tile => tile === 0 || tile === 3 || tile === 4 || tile === 5 || tile === 6)) {
+    if (gameState.every(tile => tile === 0 || tile === 3 || tile === 4 || tile === 5 || tile === 6 || tile === 7)) {
         isTransitioning = true;
         isLevelTransition = true;
         setButtonsEnabled(false);
@@ -1325,6 +1530,8 @@ async function checkWinCondition() {
                     await showTutorialImage('TwoRows.jpg');
                 } else if (currentLevel === 40) {  
                     await showTutorialImage('Lines.jpg');
+				} else if (currentLevel === 60) { 
+                    await showTutorialImage('Rotation.jpg');
                 }
                 
                 if (currentLevel < levels.length) {
@@ -1419,6 +1626,7 @@ document.getElementById('reset-btn').addEventListener('mouseout', function() {
 initLevel(currentLevel);
 updateStarsDisplay();
 updateInstructionVisibility();
+animateRotationSymbol();
 
 
 
