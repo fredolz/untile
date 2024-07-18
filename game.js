@@ -92,10 +92,15 @@ const levels = [
   { grid: [0,1,1,1,7,0,0,1,1,7,1,0,0,0,1,0,1,1,0], optimalMoves: 5, difficulty: 'medium'  }, //lvl 69
   { grid: [0,0,1,0,1,1,7,7,1,7,0,0,1,0,0,0,0,1,0], optimalMoves: 6, difficulty: 'medium'  }, //lvl 70
   { grid: [0,1,0,0,0,0,2,0,2,7,0,0,0,0,0,0,1,0,0], optimalMoves: 3, difficulty: 'easy'  }, //lvl 71
-  { grid: [1,0,1,1,1,0,2,0,1,7,0,0,2,0,0,0,1,1,0], optimalMoves: 5, difficulty: 'medium'  }, //lvl 72
-  { grid: [0,2,2,0,0,1,7,7,0,0,0,0,0,0,0,0,1,0,0], optimalMoves: 6, difficulty: 'medium'  }, //lvl 73
-  { grid: [0,1,1,0,0,0,0,0,0,0,1,7,7,0,0,2,0,1,0], optimalMoves: 7, difficulty: 'hard'  }, //lvl 74
-  { grid: [0,1,2,0,7,0,7,7,2,0,0,0,0,0,0,0,0,1,0], optimalMoves: 7, difficulty: 'hard'  }, //lvl 75
+  { grid: [0,0,0,0,7,1,0,7,0,2,0,0,2,0,0,0,0,1,0], optimalMoves: 4, difficulty: 'medium'  }, //lvl 72
+  { grid: [1,0,1,1,1,0,2,0,1,7,0,0,2,0,0,0,1,1,0], optimalMoves: 5, difficulty: 'medium'  }, //lvl 73
+  { grid: [0,2,2,0,0,1,7,7,0,0,0,0,0,0,0,0,1,0,0], optimalMoves: 6, difficulty: 'medium'  }, //lvl 74
+  { grid: [0,1,1,0,0,0,0,0,0,0,1,7,7,0,0,2,0,1,0], optimalMoves: 7, difficulty: 'hard'  }, //lvl 75
+  { grid: [0,1,2,0,7,0,7,7,2,0,0,0,0,0,0,0,0,1,0], optimalMoves: 7, difficulty: 'hard'  }, //lvl 76
+  { grid: [0,2,2,2,1,2,1,1,1,7,1,0,0,0,0,0,0,0,0], optimalMoves: 7, difficulty: 'hard'  }, //lvl 77
+  { grid: [0,0,0,0,7,0,2,0,1,0,1,2,0,0,7,0,0,0,0], optimalMoves: 7, difficulty: 'hard'  }, //lvl 78
+  { grid: [2,1,1,0,7,1,1,0,0,7,0,0,1,1,7,0,1,1,2], optimalMoves: 8, difficulty: 'hard'  }, //lvl 79
+  { grid: [7,2,2,1,0,7,0,0,0,7,0,0,1,1,0,0,1,0,0], optimalMoves: 10, difficulty: 'hard'  }, //lvl 80
   
 ];
 
@@ -1434,7 +1439,7 @@ function showFinalVictoryScreen() {
             ctx.fillStyle = 'white';
             ctx.font = 'bold 30px Arial, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('Congratulations, you finished Untile v0.7!', centerX, 40);
+            ctx.fillText('Congratulations, you finished Untile v0.8!', centerX, 40);
 
             // Afficher le texte "Perfect score" si le score est maximal
             if (totalStars === maxStars) {
