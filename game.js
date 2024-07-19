@@ -70,11 +70,11 @@ const levels = [
   { grid: [6,6,1,4,6,4,1,6,4,6,4,6,1,4,6,4,1,6,6], optimalMoves: 5, difficulty: 'medium'  }, //lvl 47 (56 dans doc de LD) 
   { grid: [6,4,4,1,6,6,4,4,1,6,1,4,4,6,6,1,4,4,6], optimalMoves: 5, difficulty: 'medium'  }, //lvl 48 (57 dans doc de LD) 
   { grid: [4,6,5,6,4,5,1,1,4,4,4,1,1,5,4,6,5,6,4], optimalMoves: 4, difficulty: 'medium'  }, //lvl 49 (58 dans doc de LD) 
-  { grid: [4,4,4,5,2,6,4,4,5,4,6,1,1,5,4,6,4,4,4], optimalMoves: 4, difficulty: 'medium'  }, //lvl 50 (60 dans doc de LD) 
-  { grid: [5,5,6,2,5,1,5,6,4,4,5,6,5,2,6,1,6,5,6], optimalMoves: 5, difficulty: 'medium'  }, //lvl 51 (61 dans doc de LD) 
-  { grid: [4,1,1,5,5,6,5,6,2,4,2,6,5,6,6,5,1,1,4], optimalMoves: 4, difficulty: 'medium'  }, //lvl 52 (66 dans doc de LD) 
-  { grid: [6,6,6,4,1,2,5,6,4,4,4,6,5,4,1,2,5,5,5], optimalMoves: 4, difficulty: 'medium'  }, //lvl 53 (63 dans doc de LD) 
-  { grid: [6,6,6,6,6,1,6,1,4,4,4,5,1,5,5,1,5,5,5], optimalMoves: 5, difficulty: 'hard'  }, //lvl 54 (59 dans doc de LD) 
+  { grid: [5,5,5,1,5,5,1,5,4,4,4,1,6,1,6,6,6,6,6], optimalMoves: 5, difficulty: 'medium'  }, //lvl 50 (59 dans doc de LD)
+  { grid: [4,4,4,5,2,6,4,4,5,4,6,1,1,5,4,6,4,4,4], optimalMoves: 4, difficulty: 'medium'  }, //lvl 51 (60 dans doc de LD) 
+  { grid: [5,5,6,2,5,1,5,6,4,4,5,6,5,2,6,1,6,5,6], optimalMoves: 5, difficulty: 'medium'  }, //lvl 52 (61 dans doc de LD) 
+  { grid: [4,1,1,5,5,6,5,6,2,4,2,6,5,6,6,5,1,1,4], optimalMoves: 4, difficulty: 'medium'  }, //lvl 53 (66 dans doc de LD) 
+  { grid: [6,6,6,4,1,2,5,6,4,4,4,6,5,4,1,2,5,5,5], optimalMoves: 4, difficulty: 'medium'  }, //lvl 54 (63 dans doc de LD) 
   { grid: [2,2,6,5,6,6,4,6,4,4,2,4,5,6,5,5,2,5,2], optimalMoves: 5, difficulty: 'hard'  }, //lvl 55 (62 dans doc de LD) 
   { grid: [6,1,6,4,6,2,4,4,4,5,4,4,4,2,5,4,6,1,6], optimalMoves: 5, difficulty: 'hard'  }, //lvl 56 (64 dans doc de LD) 
   { grid: [6,6,6,4,2,4,6,1,4,4,4,5,1,4,2,4,5,5,5], optimalMoves: 6, difficulty: 'hard'  }, //lvl 57 (65 dans doc de LD) 
@@ -149,9 +149,33 @@ const largeHexPositions = [
 function updateInstructionVisibility() {
     const instructionElement = document.getElementById('instruction');
     if (currentLevel === 0) {
-        instructionElement.style.visibility = 'visible';
+        const hexagonContainer = document.getElementById('hexagon-container');
+        const hexagonRect = hexagonContainer.getBoundingClientRect();
+        
+        instructionElement.style.display = 'block';
+        instructionElement.style.position = 'absolute';
+        instructionElement.style.width = '100%';
+        instructionElement.style.textAlign = 'center';
+        instructionElement.style.top = `${hexagonRect.bottom - 50}px`; // 10px sous la grille
+        instructionElement.style.left = '0';
+        instructionElement.style.color = 'white';
+		instructionElement.style.fontStyle = 'italic'; 
+        instructionElement.style.fontSize = '18px';
+        instructionElement.style.zIndex = '1000';
+        instructionElement.innerHTML = '<b>How to play?</b><br><br>Choose the right blank tile to flip the adjacent ones<br>and clear the board!';
+        
+        // Animation de clignotement
+        let opacity = 1;
+        const animate = () => {
+            opacity = Math.sin(Date.now() / 500) * 0.3 + 0.7;
+            instructionElement.style.opacity = opacity;
+            if (currentLevel === 0) {
+                requestAnimationFrame(animate);
+            }
+        };
+        animate();
     } else {
-        instructionElement.style.visibility = 'hidden';
+        instructionElement.style.display = 'none';
     }
 }
 
@@ -474,6 +498,7 @@ function initLevel(level) {
         drawGrid();
         updateMovesDisplay();
         updateStarsDisplay();
+		updateElementsVisibility();
         // Utilisez setTimeout pour s'assurer que le rendu est terminé avant de résoudre la promesse
         setTimeout(resolve, 100);
     });
@@ -482,6 +507,14 @@ function initLevel(level) {
 function updateMovesDisplay() {
     const movesDisplay = document.getElementById('moves-display');
     movesDisplay.textContent = `Remaining moves for optimal solution: ${remainingMoves}`;
+    movesDisplay.style.position = 'absolute';
+    movesDisplay.style.bottom = '50px'; // Ajustez cette valeur pour remonter le texte
+    movesDisplay.style.left = '0';
+    movesDisplay.style.right = '0';
+    movesDisplay.style.textAlign = 'center';
+    movesDisplay.style.color = 'white';
+    movesDisplay.style.fontSize = '16px';
+	movesDisplay.style.fontStyle = 'italic';
 }
 
 function playFlipSound() {
@@ -899,51 +932,54 @@ function drawLevelText() {
     ctx.textBaseline = 'top';
     ctx.fillText(`Level ${currentLevel + 1} / ${levels.length}`, centerX, 10);
     
-    // Préparer le texte pour la difficulté et le nombre de coups optimal
-    const difficultyText = `Difficulty: ${levels[currentLevel].difficulty.toUpperCase()}`;
-    const movesText = `Optimal moves: ${levels[currentLevel].optimalMoves}`;
-    const combinedText = `${difficultyText}  -  ${movesText}`;
-    
-    // Mesurer la largeur du texte combiné
-    ctx.font = 'italic 16px Arial';
-    const textWidth = ctx.measureText(combinedText).width;
-    
-    // Calculer les positions de début pour chaque partie du texte
-    const startX = centerX - textWidth / 2;
-    const y = 40; // Position verticale du texte
-    
-    // Afficher la difficulté
-    let difficultyColor;
-    switch(levels[currentLevel].difficulty) {
-        case 'easy':
-            difficultyColor = '#81edbf';
-            break;
-        case 'medium':
-            difficultyColor = '#e8fda0';
-            break;
-        case 'hard':
-            difficultyColor = '#c91f8b';
-            break;
-        default:
-            difficultyColor = 'white';
+    // Ne pas afficher la difficulté et le nombre de coups optimal pour le premier niveau
+    if (currentLevel !== 0) {
+        // Préparer le texte pour la difficulté et le nombre de coups optimal
+        const difficultyText = `Difficulty: ${levels[currentLevel].difficulty.toUpperCase()}`;
+        const movesText = `Optimal moves: ${levels[currentLevel].optimalMoves}`;
+        const combinedText = `${difficultyText}  -  ${movesText}`;
+        
+        // Mesurer la largeur du texte combiné
+        ctx.font = 'italic 16px Arial';
+        const textWidth = ctx.measureText(combinedText).width;
+        
+        // Calculer les positions de début pour chaque partie du texte
+        const startX = centerX - textWidth / 2;
+        const y = 40; // Position verticale du texte
+        
+        // Afficher la difficulté
+        let difficultyColor;
+        switch(levels[currentLevel].difficulty) {
+            case 'easy':
+                difficultyColor = '#81edbf';
+                break;
+            case 'medium':
+                difficultyColor = '#e8fda0';
+                break;
+            case 'hard':
+                difficultyColor = '#c91f8b';
+                break;
+            default:
+                difficultyColor = 'white';
+        }
+        ctx.fillStyle = difficultyColor;
+        ctx.textAlign = 'left';
+        ctx.fillText(difficultyText, startX, y);
+        
+        // Mesurer la largeur du texte de difficulté
+        const difficultyWidth = ctx.measureText(difficultyText).width;
+        
+        // Afficher le séparateur
+        ctx.fillStyle = 'white';
+        ctx.fillText('  -  ', startX + difficultyWidth, y);
+        
+        // Mesurer la largeur du séparateur
+        const separatorWidth = ctx.measureText('  -  ').width;
+        
+        // Afficher le nombre de coups optimal
+        ctx.fillStyle = 'lightblue';
+        ctx.fillText(movesText, startX + difficultyWidth + separatorWidth, y);
     }
-    ctx.fillStyle = difficultyColor;
-    ctx.textAlign = 'left';
-    ctx.fillText(difficultyText, startX, y);
-    
-    // Mesurer la largeur du texte de difficulté
-    const difficultyWidth = ctx.measureText(difficultyText).width;
-    
-    // Afficher le séparateur
-    ctx.fillStyle = 'white';
-    ctx.fillText('  -  ', startX + difficultyWidth, y);
-    
-    // Mesurer la largeur du séparateur
-    const separatorWidth = ctx.measureText('  -  ').width;
-    
-    // Afficher le nombre de coups optimal
-    ctx.fillStyle = 'lightblue';
-    ctx.fillText(movesText, startX + difficultyWidth + separatorWidth, y);
     
     // Garder le texte 'Start!' pour le premier niveau
     if (currentLevel === 0) {
@@ -1273,12 +1309,12 @@ function showCongratulationsMessage(level, starsEarned) {
             ctx.fillText(`You achieved level ${level}.`, canvas.width / 2, canvas.height / 2 - 40);
 
             if (starsEarned === 3) {
-                ctx.font = 'italic 24px Arial, sans-serif';
+                ctx.font = 'italic 18px Arial, sans-serif';
                 perfectScoreOpacity = 0.8 + 0.2 * Math.sin(time);
                 ctx.fillStyle = `rgba(255, 215, 0, ${perfectScoreOpacity})`;
                 ctx.fillText("Perfect! You used the minimum number of moves!", canvas.width / 2, canvas.height / 2);
             } else {
-				ctx.font = 'italic 24px Arial, sans-serif';
+				ctx.font = 'italic 18px Arial, sans-serif';
                 ctx.fillStyle = `rgba(192, 192, 192, ${opacity})`;
                 ctx.fillText("... but you can do this with less moves ...", canvas.width / 2, canvas.height / 2);
             }
@@ -1421,7 +1457,18 @@ function drawVictoryHexagon(ctx, x, y, size, opacity = 1) {
 
 function showFinalVictoryScreen() {
     return new Promise(resolve => {
+		// Cacher les boutons undo et reset
+        document.getElementById('undo-btn').style.display = 'none';
+        document.getElementById('reset-btn').style.display = 'none';
+		// Cacher l'affichage des coups restants
+        document.getElementById('moves-display').style.display = 'none';
+		// Cacher le sélecteur de niveaux
+        document.getElementById('level-select').style.display = 'none';
+		// Cacher l'affichage des étoiles en haut à droite
+        document.getElementById('stars-display').style.display = 'none';
+		
         setButtonsEnabled(false);  // Désactiver les boutons
+		
 		let rotation = 0;
         const rotationSpeed = 0.01;
         const centerX = canvas.width / 2;
@@ -1435,33 +1482,12 @@ function showFinalVictoryScreen() {
 
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 30px Arial, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('Congratulations, you finished Untile v0.8!', centerX, 40);
-
-            // Afficher le texte "Perfect score" si le score est maximal
-            if (totalStars === maxStars) {
-                ctx.font = 'italic 24px Arial, sans-serif';
-                ctx.fillStyle = `rgba(255, 215, 0, ${perfectScoreOpacity})`;  // Couleur or avec opacité variable
-                ctx.fillText('Perfect score', centerX, 80);
-
-                // Faire clignoter le texte
-                if (perfectScoreIncreasing) {
-                    perfectScoreOpacity += 0.02;
-                    if (perfectScoreOpacity >= 1) {
-                        perfectScoreOpacity = 1;
-                        perfectScoreIncreasing = false;
-                    }
-                } else {
-                    perfectScoreOpacity -= 0.02;
-                    if (perfectScoreOpacity <= 0.3) {
-                        perfectScoreOpacity = 0.3;
-                        perfectScoreIncreasing = true;
-                    }
-                }
-            }
+            ctx.fillStyle = 'white';
+            ctx.font = 'italic bold 30px Arial, sans-serif';
+            ctx.fillText('Congratulations!', centerX, 40);
+			ctx.font = 'italic bold 24px Arial, sans-serif';
+            ctx.fillText('You finished Untile v0.8.1', centerX, 80);
 
             ctx.save();
             ctx.translate(centerX, centerY);
@@ -1493,6 +1519,35 @@ function showFinalVictoryScreen() {
                     expanding = true;
                 }
             }
+
+			// Afficher le nombre d'étoiles gagnées
+            ctx.fillStyle = 'white';
+            ctx.font = 'italic 24px Arial, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`Total stars: ${totalStars} / ${maxStars} ★`, centerX, canvas.height - 60);
+			
+			// Afficher le texte "Perfect score" si le score est maximal
+            if (totalStars === maxStars) {
+                ctx.font = 'italic 24px Arial, sans-serif';
+                ctx.fillStyle = `rgba(255, 215, 0, ${perfectScoreOpacity})`;  // Couleur or avec opacité variable
+                ctx.fillText('Perfect score', centerX, canvas.height - 30);
+
+                // Faire clignoter le texte
+                if (perfectScoreIncreasing) {
+                    perfectScoreOpacity += 0.02;
+                    if (perfectScoreOpacity >= 1) {
+                        perfectScoreOpacity = 1;
+                        perfectScoreIncreasing = false;
+                    }
+                } else {
+                    perfectScoreOpacity -= 0.02;
+                    if (perfectScoreOpacity <= 0.3) {
+                        perfectScoreOpacity = 0.3;
+                        perfectScoreIncreasing = true;
+                    }
+                }
+            }
+
 
             requestAnimationFrame(animate);
         }
@@ -1530,6 +1585,7 @@ async function checkWinCondition() {
                 totalStars += result.starsEarned;
                 updateStarsDisplay();
                 currentLevel++;
+				updateElementsVisibility();
                 updateInstructionVisibility();
                 
                 if (currentLevel === 20) {
@@ -1571,6 +1627,17 @@ function calculateStarsEarned() {
 function updateStarsDisplay() {
     const starsDisplay = document.getElementById('stars-display');
     starsDisplay.textContent = `${totalStars} / ${maxStars} ★`;
+}
+
+//Gestion de l'UI au premier niveau 
+function updateElementsVisibility() {
+    const isFirstLevel = currentLevel === 0;
+    document.getElementById('stars-display').style.display = isFirstLevel ? 'none' : 'block';
+    document.getElementById('undo-btn').style.display = isFirstLevel ? 'none' : 'block';
+    document.getElementById('reset-btn').style.display = isFirstLevel ? 'none' : 'block';
+    document.getElementById('moves-display').style.display = isFirstLevel ? 'none' : 'block';
+	document.getElementById('level-select').style.display = isFirstLevel ? 'none' : 'block';
+
 }
 
 //Gestion des boutons de contrôle
@@ -1634,6 +1701,7 @@ document.getElementById('reset-btn').addEventListener('mouseout', function() {
 initLevel(currentLevel);
 updateStarsDisplay();
 updateInstructionVisibility();
+updateElementsVisibility();
 animateRotationSymbol();
 
 

@@ -84,23 +84,30 @@
 </style>
 </head>
 <body>
-	<div id="instruction" style="height: 20px; visibility: hidden;"><i>Click on the correct blank tile to flip the adjacent ones and clear the board.</i></div>
+	<div id="instruction" style="height: 20px"><i>Click on the correct blank tile to flip the adjacent ones and clear the board.</i></div>
     
     <br>    
     <div id="game-container">
+	
 		<div id="stars-display" style="position: absolute; top: 10px; right: 10px; font-size: 20px;"></div>
         <canvas id="game-canvas" width="1000" height="600"></canvas>
         <div id="hexagon-container"></div>
+		
+		<div id="level-info" style="text-align: center; margin-top: 10px;">
+        <span id="difficulty-display" style="margin-right: 10px;"></span>
+        <span id="optimal-moves-display"></span>
+    </div>
+
         <br>
         <center>
-		<div id="button-container">
+		<div id="button-container" style="display: flex; justify-content: center; gap: 10px; margin-top: 20px;">
 			<img id="undo-btn" src="undo-button.png" alt="Undo" class="control-button" title="Undo last move">
 			<img id="reset-btn" src="restart-button.png" alt="Restart" class="control-button" title="Reset the current level">
 		</div>
         <br><br>
 		<!-- ajouter le style="display: none; si on veut cacher le nombre de coups restants pour optimiser -->
 		<div id="moves-display"></div> 
-        Jump to <select id="level-select">
+        <select id="level-select">
         </select>
 		</center>
     </div>
