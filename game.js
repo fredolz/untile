@@ -17,6 +17,8 @@ let remainingMoves;
 let isLevelTransition = false;
 let isTransitioning = false;
 let rotationAngle = 0;
+let initialState = [];
+let flipCount = [];
 
 // Définition des niveaux
 
@@ -493,16 +495,125 @@ function initLevel(level) {
         isLevelTransition = false;
         isTransitioning = false;
         gameState = [...levels[level].grid];
+        initialState = [...levels[level].grid];
+        flipCount = new Array(gameState.length).fill(0); // Initialiser le compteur de retournements
         remainingMoves = levels[level].optimalMoves;
         history = [];
         drawGrid();
         updateMovesDisplay();
         updateStarsDisplay();
-		updateElementsVisibility();
-        // Utilisez setTimeout pour s'assurer que le rendu est terminé avant de résoudre la promesse
+        updateElementsVisibility();
         setTimeout(resolve, 100);
     });
 }
+
+function flipTile(tileIndex, flipperState) {
+    const currentState = gameState[tileIndex];
+    const initialTileState = initialState[tileIndex];
+
+    if (currentState === 7) {
+        return; // La tuile 7 ne change jamais d'état
+    }
+
+    flipCount[tileIndex]++; // Incrémenter le compteur de retournements
+
+    if (initialTileState === 2) {
+        // Logique spéciale pour les tuiles initialement d'état 2
+        if (flipCount[tileIndex] % 2 === 1) {
+            // Retournement impair : devient 1
+            gameState[tileIndex] = 1;
+        } else {
+            // Retournement pair : devient 0, 3, 4, 5 ou 6 selon la tuile qui la retourne
+            gameState[tileIndex] = (flipperState === 1 || flipperState === 2) ? 0 : flipperState;
+        }
+    } else if (initialTileState === 1) {
+        // Logique pour les tuiles initialement d'état 1
+        if (flipCount[tileIndex] % 2 === 1) {
+            // Retournement impair : devient 0, 3, 4, 5 ou 6 selon la tuile qui la retourne
+            gameState[tileIndex] = (flipperState === 1 || flipperState === 2) ? 0 : flipperState;
+        } else {
+            // Retournement pair : redevient 1
+            gameState[tileIndex] = 1;
+        }
+    } else {
+        // Logique pour les tuiles neutres (0, 3, 4, 5, 6)
+        if (flipCount[tileIndex] % 2 === 1) {
+            // Retournement impair : devient 1
+            gameState[tileIndex] = 1;
+        } else {
+            // Retournement pair : retourne à l'état initial
+            gameState[tileIndex] = initialTileState;
+        }
+    }
+}
+
+function flipAdjacentTiles(tileIndex) {
+    const adjacentTiles = getAdjacentTiles(tileIndex);
+    const flipperState = gameState[tileIndex];
+    adjacentTiles.forEach(tile => {
+        flipTile(tile, flipperState);
+    });
+}
+
+function flipTwoRowsOfTiles(tileIndex) {
+    const adjacentTiles = getAdjacentTiles(tileIndex);
+    const secondRowTiles = getSecondRowTiles(tileIndex);
+    const allTilesToFlip = [...new Set([...adjacentTiles, ...secondRowTiles])];
+    const flipperState = gameState[tileIndex];
+
+    allTilesToFlip.forEach(tile => {
+        if (tile !== tileIndex) {
+            flipTile(tile, flipperState);
+        }
+    });
+}
+
+function flipVerticalColumnTiles(tileIndex) {
+    const columnTiles = getVerticalColumnTiles(tileIndex);
+    const flipperState = gameState[tileIndex];
+    columnTiles.forEach(tile => {
+        flipTile(tile, flipperState);
+    });
+}
+
+function flipDiagonalTiles(tileIndex, getDiagonalTiles) {
+    const diagonalTiles = getDiagonalTiles(tileIndex);
+    const flipperState = gameState[tileIndex];
+    diagonalTiles.forEach(tile => {
+        flipTile(tile, flipperState);
+    });
+}
+
+function rotateAdjacentTiles(tileIndex) {
+    const adjacentTiles = getAdjacentTiles(tileIndex);
+    
+    // Si nous n'avons pas assez de tuiles adjacentes pour faire une rotation, on ne fait rien
+    if (adjacentTiles.length < 3) return;
+
+    // Trouver l'ordre de rotation en fonction de la position relative des tuiles adjacentes
+    const clickedPos = isSmallGrid(currentLevel) ? smallHexPositions[tileIndex] : largeHexPositions[tileIndex];
+    const sortedTiles = adjacentTiles.sort((a, b) => {
+        const posA = isSmallGrid(currentLevel) ? smallHexPositions[a] : largeHexPositions[a];
+        const posB = isSmallGrid(currentLevel) ? smallHexPositions[b] : largeHexPositions[b];
+        const angleA = Math.atan2(posA.y - clickedPos.y, posA.x - clickedPos.x);
+        const angleB = Math.atan2(posB.y - clickedPos.y, posB.x - clickedPos.x);
+        return angleA - angleB;
+    });
+
+    // Sauvegarder les états actuels et les compteurs de retournement
+    const states = sortedTiles.map(index => gameState[index]);
+    const flips = sortedTiles.map(index => flipCount[index]);
+    const initials = sortedTiles.map(index => initialState[index]);
+    
+    // Effectuer la rotation
+    for (let i = 0; i < sortedTiles.length; i++) {
+        const prevIndex = (i - 1 + sortedTiles.length) % sortedTiles.length;
+        gameState[sortedTiles[i]] = states[prevIndex];
+        flipCount[sortedTiles[i]] = flips[prevIndex];
+        initialState[sortedTiles[i]] = initials[prevIndex];
+    }
+}
+
 
 function updateMovesDisplay() {
     const movesDisplay = document.getElementById('moves-display');
@@ -892,35 +1003,7 @@ function animateRotation(tileIndex) {
 }
 
 
-function flipDiagonalTiles(tileIndex, getDiagonalTiles) {
-    const diagonalTiles = getDiagonalTiles(tileIndex);
-	const newState = gameState[tileIndex]; // L'état de la tuile cliquée (5 ou 6)
-    diagonalTiles.forEach(tile => {
-        switch (gameState[tile]) {
-            case 0:
-                gameState[tile] = 1;
-                break;
-            case 1:
-                gameState[tile] = newState; // Devient 5 ou 6 selon la tuile cliquée
-                break;
-            case 2:
-                gameState[tile] = 1;
-                break;
-            case 3:
-                gameState[tile] = 1;
-                break;
-			case 4:
-                gameState[tile] = 1;
-                break;
-			case 5:
-                gameState[tile] = 1;
-                break;
-			case 6:
-                gameState[tile] = 1;
-                break;
-        }
-    });
-}
+
 
 function drawLevelText() {
     const centerX = canvas.width / 2;
@@ -1063,114 +1146,6 @@ async function handleClick(x, y) {
     }
 }
 
-function flipAdjacentTiles(tileIndex) {
-    const adjacentTiles = getAdjacentTiles(tileIndex);
-    adjacentTiles.forEach(tile => {
-        switch (gameState[tile]) {
-            case 0:
-                gameState[tile] = 1;
-                break;
-            case 1:
-                if (levels[currentLevel].grid[tile] === 3) {
-                    gameState[tile] = 3;
-                } else {
-                    gameState[tile] = 0;
-                }
-                break;
-            case 2:
-                gameState[tile] = 1;
-                break;
-            case 3:
-                gameState[tile] = 1;
-                break;
-        }
-    });
-}
-
-function flipTwoRowsOfTiles(tileIndex) {
-    const adjacentTiles = getAdjacentTiles(tileIndex);
-    const secondRowTiles = getSecondRowTiles(tileIndex);
-    const allTilesToFlip = [...new Set([...adjacentTiles, ...secondRowTiles])];
-
-    allTilesToFlip.forEach(tile => {
-        if (tile === tileIndex) {
-            // Ne rien faire pour la tuile cliquée
-            return;
-        }
-        switch (gameState[tile]) {
-            case 0:
-                gameState[tile] = 1;
-                break;
-            case 1:
-                gameState[tile] = 3;
-                break;
-            case 2:
-                gameState[tile] = 1;
-                break;
-            case 3:
-                gameState[tile] = 1;
-                break;
-        }
-    });
-
-    // La tuile cliquée ne change pas d'état
-}
-
-function flipVerticalColumnTiles(tileIndex) {
-    const columnTiles = getVerticalColumnTiles(tileIndex);
-    columnTiles.forEach(tile => {
-        switch (gameState[tile]) {
-            case 0:
-                gameState[tile] = 1;
-                break;
-            case 1:
-                gameState[tile] = 4;
-                break;
-            case 2:
-                gameState[tile] = 1;
-                break;
-            case 3:
-                gameState[tile] = 1;
-                break;
-			case 4:
-                gameState[tile] = 1;
-                break;
-			case 5:
-                gameState[tile] = 1;
-                break;
-			case 6:
-                gameState[tile] = 1;
-                break;
-        }
-    });
-}
-
-
-function rotateAdjacentTiles(tileIndex) {
-    const adjacentTiles = getAdjacentTiles(tileIndex);
-    
-    // Si nous n'avons pas assez de tuiles adjacentes pour faire une rotation, on ne fait rien
-    if (adjacentTiles.length < 3) return;
-
-    // Trouver l'ordre de rotation en fonction de la position relative des tuiles adjacentes
-    const clickedPos = isSmallGrid(currentLevel) ? smallHexPositions[tileIndex] : largeHexPositions[tileIndex];
-    const sortedTiles = adjacentTiles.sort((a, b) => {
-        const posA = isSmallGrid(currentLevel) ? smallHexPositions[a] : largeHexPositions[a];
-        const posB = isSmallGrid(currentLevel) ? smallHexPositions[b] : largeHexPositions[b];
-        const angleA = Math.atan2(posA.y - clickedPos.y, posA.x - clickedPos.x);
-        const angleB = Math.atan2(posB.y - clickedPos.y, posB.x - clickedPos.x);
-        return angleA - angleB;
-    });
-
-    // Sauvegarder les états actuels
-    const states = sortedTiles.map(index => gameState[index]);
-    
-    // Effectuer la rotation
-    for (let i = 0; i < sortedTiles.length; i++) {
-        const prevIndex = (i - 1 + sortedTiles.length) % sortedTiles.length;
-        gameState[sortedTiles[i]] = states[prevIndex];
-    }
-}
 
 
 function getTileFromCoordinates(x, y) {
@@ -1487,7 +1462,7 @@ function showFinalVictoryScreen() {
             ctx.font = 'italic bold 30px Arial, sans-serif';
             ctx.fillText('Congratulations!', centerX, 40);
 			ctx.font = 'italic bold 24px Arial, sans-serif';
-            ctx.fillText('You finished Untile v0.8.1', centerX, 80);
+            ctx.fillText('You finished Untile v0.8.2', centerX, 80);
 
             ctx.save();
             ctx.translate(centerX, centerY);
