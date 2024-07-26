@@ -19,6 +19,8 @@ let isTransitioning = false;
 let rotationAngle = 0;
 let initialState = [];
 let flipCount = [];
+let tiles = [];
+let storedRandomLevel = null;
 
 // Définition des niveaux
 
@@ -58,11 +60,11 @@ const levels = [
   { grid: [3,1,1,3,1,3,3,3,0,3,0,3,3,3,1,3,1,1,3], optimalMoves: 4, difficulty: 'easy'  }, //lvl 33
   { grid: [3,1,1,3,1,3,3,3,3,1,3,3,3,3,3,3,1,1,1], optimalMoves: 3, difficulty: 'easy'  }, //lvl 34 (39 dans doc de LD)
   { grid: [1,3,3,1,3,1,3,3,3,1,3,3,3,1,3,1,3,3,1], optimalMoves: 3, difficulty: 'easy'  }, //lvl 35 (40 dans doc de LD)
-  { grid: [3,3,3,3,1,3,2,2,3,3,3,1,1,3,1,3,3,3,1], optimalMoves: 3, difficulty: 'easy'  }, //lvl 36 (41 dans doc de LD) 
+  { grid: [3,3,3,3,1,3,2,2,3,3,3,2,2,3,1,3,3,3,3], optimalMoves: 4, difficulty: 'easy'  }, //lvl 36 (41 dans doc de LD) 
   { grid: [3,3,3,3,3,3,3,1,3,2,3,1,3,3,3,3,3,3,3], optimalMoves: 4, difficulty: 'medium'  }, //lvl 37 (45 dans doc de LD) 
-  { grid: [1,3,3,3,1,3,3,3,1,2,3,3,1,1,3,1,1,3,3], optimalMoves: 4, difficulty: 'medium'  }, //lvl 38  
-  { grid: [3,3,3,3,3,3,2,1,3,3,3,1,3,3,3,3,2,3,3], optimalMoves: 4, difficulty: 'medium'  }, //lvl 39 (48 dans doc de LD) 
-  { grid: [3,3,1,1,3,3,3,1,3,3,3,3,2,3,1,3,1,3,3], optimalMoves: 4, difficulty: 'medium'  }, //lvl 40 
+  { grid: [3,3,3,3,3,3,2,1,3,3,3,1,3,3,3,3,2,3,3], optimalMoves: 4, difficulty: 'medium'  }, //lvl 38 (48 dans doc de LD) 
+  { grid: [3,3,3,3,1,3,3,3,3,3,3,0,0,1,0,1,2,2,1], optimalMoves: 4, difficulty: 'medium'  }, //lvl 39 
+  { grid: [1,0,3,0,2,1,3,0,3,2,3,0,3,1,2,0,3,0,1], optimalMoves: 5, difficulty: 'medium'  }, //lvl 40 
   { grid: [1,0,0,4,0,0,1], optimalMoves: 1, difficulty: 'Tutorial'  }, //lvl 41 (50 dans doc de LD) introduction des tuiles retournant des lignes
   { grid: [1,1,1,1,1,4,1,4,1,4,1,4,1,4,1,1,1,1,1], optimalMoves: 5, difficulty: 'easy'  }, //lvl 42 (~51 dans doc de LD) 
   { grid: [5,5,5,1,5,1,5,1,4,1,4,5,5,5,5,5,5,5,5], optimalMoves: 2, difficulty: 'easy'  }, //lvl 43 (~52 dans doc de LD) 
@@ -108,6 +110,57 @@ const levels = [
 
 window.currentLevel = currentLevel;
 window.levels = levels;
+
+
+
+// Ajour de l'élément random en fin de liste
+const levelSelect = document.getElementById('level-select');
+levels.forEach((level, index) => {
+    const option = document.createElement('option');
+    option.value = index;
+    option.textContent = `Level ${index + 1}`;
+    levelSelect.appendChild(option);
+});
+
+// Ajouter un séparateur
+const separator = document.createElement('option');
+separator.disabled = true;
+separator.value = "";
+separator.textContent = "─────────────";
+separator.style.color = "#888";
+separator.style.fontWeight = "bold";
+separator.style.backgroundColor = "#f0f0f0";
+levelSelect.appendChild(separator);
+
+const randomOption = document.createElement('option');
+randomOption.value = 'random';
+randomOption.textContent = 'Random';
+levelSelect.appendChild(randomOption);
+
+// Ajouter un écouteur d'événements pour le changement de niveau
+levelSelect.addEventListener('change', (e) => {
+    console.log("Level select changed");
+    const selectedLevel = e.target.value;
+    console.log("Selected level:", selectedLevel);
+    if (selectedLevel === 'random') {
+        console.log("Initializing random level");
+        initRandomLevel();
+    } else {
+        currentLevel = parseInt(selectedLevel);
+        initLevel(currentLevel);
+    }
+    levelSelect.value = selectedLevel;
+    console.log("Level select change handled");
+});
+
+function updateLevelSelector(level) {
+    const levelSelect = document.getElementById('level-select');
+    if (level === 'random') {
+        levelSelect.value = 'random';
+    } else {
+        levelSelect.value = level.toString();
+    }
+}
 
 // Définition des variables de scoring
 let totalStars = 0;
@@ -183,6 +236,10 @@ function updateInstructionVisibility() {
 
 
 function isSmallGrid(level) {
+    if (level === 'random') {
+        // Pour le niveau aléatoire, nous utiliserons toujours la grande grille
+        return false;
+    }
     return level < 5 || (level >= 20 && level < 22) || level === 40;
 }
 
@@ -365,33 +422,38 @@ function createHexagonElement(x, y, size, state, index, isNeutral = false) {
 
 
 function drawGrid() {
+	console.log("Entering drawGrid");
+    console.log("Current level:", currentLevel);
+    console.log("Tiles:", tiles);
+	
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     hexagonContainer.innerHTML = '';
     
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2 + 20;
     
-    const hexPositions = isSmallGrid(currentLevel) ? smallHexPositions : largeHexPositions;
-    const gridSize = isSmallGrid(currentLevel) ? SMALL_GRID_SIZE : LARGE_GRID_SIZE;
+    const hexPositions = currentLevel === 'random' ? largeHexPositions : (isSmallGrid(currentLevel) ? smallHexPositions : largeHexPositions);
+    const gridSize = currentLevel === 'random' ? LARGE_GRID_SIZE : (isSmallGrid(currentLevel) ? SMALL_GRID_SIZE : LARGE_GRID_SIZE);
     
     hexPositions.forEach((pos, index) => {
-        const x = centerX + pos.x * TILE_SIZE * 1.75;
-        const y = centerY + pos.y * TILE_SIZE * 1.75;
-        
-        const hexagon = createHexagonElement(x, y, TILE_SIZE * 2, gameState[index], index, false);
-        hexagonContainer.appendChild(hexagon);
+        if (index < tiles.length) {
+            const x = centerX + pos.x * TILE_SIZE * 1.75;
+            const y = centerY + pos.y * TILE_SIZE * 1.75;
+            
+            const hexagon = createHexagonElement(x, y, TILE_SIZE * 2, tiles[index].currentState, index, false);
+            hexagonContainer.appendChild(hexagon);
+        }
     });
     
-	
     drawLevelText();
-	drawTileIndices();
+    drawTileIndices();
 	
 }
 
 function blinkGrid() {
   return new Promise(resolve => {
     victorySound.currentTime = 0;
-    victorySound.play();	
+    victorySound.play();    
 
     const maxBlinks = 4;
     let blinkCount = 0;
@@ -408,10 +470,8 @@ function blinkGrid() {
           const frontCtx = front.getContext('2d');
           frontCtx.clearRect(0, 0, front.width, front.height);
           
-          const state = gameState[hexagon.dataset.index];
-          // Dessiner la tuile normalement
+          const state = tiles[hexagon.dataset.index].currentState;
           drawHexagon(frontCtx, front.width / 2, front.height / 2, front.width / 2, state);
-          // Appliquer l'effet de clignotement à toutes les tuiles
           drawVictoryHexagon(frontCtx, front.width / 2, front.height / 2, front.width / 2, opacity);
         });
 
@@ -494,10 +554,33 @@ function initLevel(level) {
     return new Promise(resolve => {
         isLevelTransition = false;
         isTransitioning = false;
-        gameState = [...levels[level].grid];
-        initialState = [...levels[level].grid];
-        flipCount = new Array(gameState.length).fill(0); // Initialiser le compteur de retournements
-        remainingMoves = levels[level].optimalMoves;
+		updateLevelSelector(level);
+		
+		// Nettoyage complet du canvas et du conteneur d'hexagones
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        hexagonContainer.innerHTML = '';
+		
+        if (level === 'random') {
+            const randomLevel = generateRandomLevel();
+            if (randomLevel) {
+                tiles = randomLevel.grid.map((state, index) => ({
+                    currentState: state,
+                    initialState: randomLevel.initialGrid[index],
+                    flipCount: 0
+                }));
+                remainingMoves = randomLevel.clickSequence.length;
+            } else {
+                console.error("Impossible de générer un niveau aléatoire.");
+                return;
+            }
+        } else {
+            tiles = levels[level].grid.map(state => ({
+                currentState: state,
+                initialState: state,
+                flipCount: 0
+            }));
+            remainingMoves = levels[level].optimalMoves;
+        }
         history = [];
         drawGrid();
         updateMovesDisplay();
@@ -507,49 +590,101 @@ function initLevel(level) {
     });
 }
 
-function flipTile(tileIndex, flipperState) {
-    const currentState = gameState[tileIndex];
-    const initialTileState = initialState[tileIndex];
+// Fonction de génération de niveau aléatoire
+function initRandomLevel() {
+    console.log("Entering initRandomLevel");
+    
+    // Forcer l'utilisation d'une grande grille
+    const prevGridSize = isSmallGrid(currentLevel) ? SMALL_GRID_SIZE : LARGE_GRID_SIZE;
+    
+    // Nettoyer complètement l'affichage
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    hexagonContainer.innerHTML = '';
+    
+    // Forcer l'utilisation de la grande grille
+    currentLevel = 'random';
+    const gridSize = LARGE_GRID_SIZE;
+    
+    // Générer le niveau aléatoire
+    const randomLevel = generateRandomLevel();
+    if (randomLevel) {
+        console.log("Random level generated:", randomLevel);
+        storedRandomLevel = randomLevel;
+        
+        // Créer les tuiles pour la grande grille
+        tiles = Array(LARGE_GRID_SIZE).fill().map((_, index) => {
+            if (index < randomLevel.grid.length) {
+                return {
+                    currentState: randomLevel.grid[index],
+                    initialState: randomLevel.initialGrid[index],
+                    flipCount: 0
+                };
+            } else {
+                // Remplir les tuiles supplémentaires avec un état neutre (par exemple, 0)
+                return {
+                    currentState: 0,
+                    initialState: 0,
+                    flipCount: 0
+                };
+            }
+        });
+        
+        console.log("Tiles set up:", tiles);
+        
+        remainingMoves = randomLevel.clickSequence.length;
+        history = [];
+        
+        console.log("About to call drawGrid");
+        drawGrid();
+        console.log("drawGrid called");
+        updateMovesDisplay();
+        updateStarsDisplay();
+        updateElementsVisibility();
 
-    if (currentState === 7) {
-        return; // La tuile 7 ne change jamais d'état
-    }
-
-    flipCount[tileIndex]++; // Incrémenter le compteur de retournements
-
-    if (initialTileState === 2) {
-        // Logique spéciale pour les tuiles initialement d'état 2
-        if (flipCount[tileIndex] % 2 === 1) {
-            // Retournement impair : devient 1
-            gameState[tileIndex] = 1;
-        } else {
-            // Retournement pair : devient 0, 3, 4, 5 ou 6 selon la tuile qui la retourne
-            gameState[tileIndex] = (flipperState === 1 || flipperState === 2) ? 0 : flipperState;
-        }
-    } else if (initialTileState === 1) {
-        // Logique pour les tuiles initialement d'état 1
-        if (flipCount[tileIndex] % 2 === 1) {
-            // Retournement impair : devient 0, 3, 4, 5 ou 6 selon la tuile qui la retourne
-            gameState[tileIndex] = (flipperState === 1 || flipperState === 2) ? 0 : flipperState;
-        } else {
-            // Retournement pair : redevient 1
-            gameState[tileIndex] = 1;
-        }
+        console.log("Flip counts for random level:", tiles.map(tile => tile.flipCount));
+        updateLevelSelector('random');
+        console.log("initRandomLevel completed");
     } else {
-        // Logique pour les tuiles neutres (0, 3, 4, 5, 6)
-        if (flipCount[tileIndex] % 2 === 1) {
-            // Retournement impair : devient 1
-            gameState[tileIndex] = 1;
-        } else {
-            // Retournement pair : retourne à l'état initial
-            gameState[tileIndex] = initialTileState;
-        }
+        console.error("Impossible de générer un niveau aléatoire.");
+        alert("Échec de la génération du niveau aléatoire. Retour au niveau précédent.");
+        currentLevel = prevGridSize === SMALL_GRID_SIZE ? 0 : 5; // Retour à un niveau compatible avec la taille de grille précédente
+        initLevel(currentLevel);
     }
 }
 
+
+
+// Mécaniques de retournement de tuiles
+function flipTile(tileIndex, flipperState) {
+    const tile = tiles[tileIndex];
+
+    if (tile.currentState === 7) {
+        return; // La tuile 7 ne change jamais d'état
+    }
+
+    if (tile.currentState !== 1 || tile.flipCount % 2 === 1) {
+        tile.flipCount++;
+    }
+
+    if (tile.initialState === 2) {
+        if (tile.flipCount === 1) {
+            tile.currentState = 1;
+        } else if (tile.flipCount === 2) {
+            tile.currentState = 0;
+        } else {
+            tile.currentState = tile.currentState === 1 ? 0 : 1;
+        }
+    } else if (tile.initialState === 1) {
+        tile.currentState = tile.currentState === 1 ? 0 : 1;
+    } else {
+        tile.currentState = tile.flipCount % 2 === 1 ? 1 : tile.initialState;
+    }
+}
+
+
 function flipAdjacentTiles(tileIndex) {
     const adjacentTiles = getAdjacentTiles(tileIndex);
-    const flipperState = gameState[tileIndex];
+    const flipperState = tiles[tileIndex].currentState;
     adjacentTiles.forEach(tile => {
         flipTile(tile, flipperState);
     });
@@ -587,10 +722,8 @@ function flipDiagonalTiles(tileIndex, getDiagonalTiles) {
 function rotateAdjacentTiles(tileIndex) {
     const adjacentTiles = getAdjacentTiles(tileIndex);
     
-    // Si nous n'avons pas assez de tuiles adjacentes pour faire une rotation, on ne fait rien
     if (adjacentTiles.length < 3) return;
 
-    // Trouver l'ordre de rotation en fonction de la position relative des tuiles adjacentes
     const clickedPos = isSmallGrid(currentLevel) ? smallHexPositions[tileIndex] : largeHexPositions[tileIndex];
     const sortedTiles = adjacentTiles.sort((a, b) => {
         const posA = isSmallGrid(currentLevel) ? smallHexPositions[a] : largeHexPositions[a];
@@ -600,17 +733,11 @@ function rotateAdjacentTiles(tileIndex) {
         return angleA - angleB;
     });
 
-    // Sauvegarder les états actuels et les compteurs de retournement
-    const states = sortedTiles.map(index => gameState[index]);
-    const flips = sortedTiles.map(index => flipCount[index]);
-    const initials = sortedTiles.map(index => initialState[index]);
+    const tempTiles = sortedTiles.map(index => ({ ...tiles[index] }));
     
-    // Effectuer la rotation
     for (let i = 0; i < sortedTiles.length; i++) {
         const prevIndex = (i - 1 + sortedTiles.length) % sortedTiles.length;
-        gameState[sortedTiles[i]] = states[prevIndex];
-        flipCount[sortedTiles[i]] = flips[prevIndex];
-        initialState[sortedTiles[i]] = initials[prevIndex];
+        tiles[sortedTiles[i]] = tempTiles[prevIndex];
     }
 }
 
@@ -1008,15 +1135,15 @@ function animateRotation(tileIndex) {
 function drawLevelText() {
     const centerX = canvas.width / 2;
     
-    // Afficher le numéro du niveau
+    // Afficher le numéro du niveau ou "Random Level"
     ctx.fillStyle = 'white';
     ctx.font = '24px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(`Level ${currentLevel + 1} / ${levels.length}`, centerX, 10);
+    ctx.fillText(currentLevel === 'random' ? 'Random Level' : `Level ${currentLevel + 1} / ${levels.length}`, centerX, 10);
     
-    // Ne pas afficher la difficulté et le nombre de coups optimal pour le premier niveau
-    if (currentLevel !== 0) {
+    // Ne pas afficher la difficulté et le nombre de coups optimal pour le premier niveau ou le niveau aléatoire
+    if (currentLevel !== 0 && currentLevel !== 'random') {
         // Préparer le texte pour la difficulté et le nombre de coups optimal
         const difficultyText = `Difficulty: ${levels[currentLevel].difficulty.toUpperCase()}`;
         const movesText = `Optimal moves: ${levels[currentLevel].optimalMoves}`;
@@ -1083,19 +1210,19 @@ function updateHexagonStates() {
         const back = hexagon.children[1];
         const frontCtx = front.getContext('2d');
         frontCtx.clearRect(0, 0, front.width, front.height);
-        drawHexagon(frontCtx, front.width / 2, front.height / 2, front.width / 2, gameState[index]);
+        drawHexagon(frontCtx, front.width / 2, front.height / 2, front.width / 2, tiles[index].currentState);
         
-        if (gameState[index] === 7) {
+        if (tiles[index].currentState === 7) {
             drawRotationSymbol(frontCtx, front.width / 2, front.height / 2, front.width / 2);
         }
         
         if (back) {
             const backCtx = back.getContext('2d');
             backCtx.clearRect(0, 0, back.width, back.height);
-            drawHexagon(backCtx, back.width / 2, back.height / 2, back.width / 2, (gameState[index] + 1) % 3);
+            drawHexagon(backCtx, back.width / 2, back.height / 2, back.width / 2, (tiles[index].currentState + 1) % 3);
         }
         hexagon.style.transform = 'none'; // Réinitialiser la transformation
-        hexagon.dataset.state = gameState[index]; // Mettre à jour l'attribut data-state
+        hexagon.dataset.state = tiles[index].currentState; // Mettre à jour l'attribut data-state
     });
     drawLevelText();
 }
@@ -1105,44 +1232,43 @@ async function handleClick(x, y) {
 
     const clickedTile = getTileFromCoordinates(x, y);
     if (clickedTile !== -1) {
-        if (gameState[clickedTile] === 7) { // Nouvelle tuile de rotation
-            history.push([...gameState]);
-            await animateRotation(clickedTile);
-            remainingMoves--;
-            updateMovesDisplay();
-            await checkWinCondition();
-        } else if (gameState[clickedTile] === 4) {
-            history.push([...gameState]);
-            await animateFlipVerticalColumn(clickedTile);
-            remainingMoves--;
-            updateMovesDisplay();
-            await checkWinCondition();
-        } else if (gameState[clickedTile] === 5) { // Nouvelle tuile diagonale (haut gauche vers bas droite)
-            history.push([...gameState]);
-            await animateFlipDiagonal(clickedTile, getDiagonalTilesTopLeftToBottomRight);
-            remainingMoves--;
-            updateMovesDisplay();
-            await checkWinCondition();
-        } else if (gameState[clickedTile] === 6) { // Nouvelle tuile diagonale (bas gauche vers haut droite)
-            history.push([...gameState]);
-            await animateFlipDiagonal(clickedTile, getDiagonalTilesBottomLeftToTopRight);
-            remainingMoves--;
-            updateMovesDisplay();
-            await checkWinCondition();
-        } else if (gameState[clickedTile] === 3) {
-            history.push([...gameState]);
-            await animateFlipTwoRows(clickedTile);
-            // La tuile d'état 3 ne change pas d'état
-            remainingMoves--;
-            updateMovesDisplay();
-            await checkWinCondition();
-        } else if (gameState[clickedTile] === 0) {
-            history.push([...gameState]);
-            await animateFlip(clickedTile);
-            remainingMoves--;
-            updateMovesDisplay();
-            await checkWinCondition();
+        const clickedTileState = tiles[clickedTile].currentState;
+        history.push(tiles.map(tile => ({ ...tile })));
+
+        let impactedTiles = [];
+        switch (clickedTileState) {
+            case 0:
+                impactedTiles = getAdjacentTiles(clickedTile);
+                await animateFlip(clickedTile);
+                break;
+            case 3:
+                impactedTiles = [...getAdjacentTiles(clickedTile), ...getSecondRowTiles(clickedTile)];
+                await animateFlipTwoRows(clickedTile);
+                break;
+            case 4:
+                impactedTiles = getVerticalColumnTiles(clickedTile);
+                await animateFlipVerticalColumn(clickedTile);
+                break;
+            case 5:
+                impactedTiles = getDiagonalTilesTopLeftToBottomRight(clickedTile);
+                await animateFlipDiagonal(clickedTile, getDiagonalTilesTopLeftToBottomRight);
+                break;
+            case 6:
+                impactedTiles = getDiagonalTilesBottomLeftToTopRight(clickedTile);
+                await animateFlipDiagonal(clickedTile, getDiagonalTilesBottomLeftToTopRight);
+                break;
+            case 7:
+                impactedTiles = getAdjacentTiles(clickedTile);
+                await animateRotation(clickedTile);
+                break;
         }
+
+        console.log("Impacted tiles:", impactedTiles);
+        console.log("Updated grid:", tiles.map(tile => tile.currentState));
+
+        remainingMoves--;
+        updateMovesDisplay();
+        await checkWinCondition();
     }
 }
 
@@ -1281,28 +1407,52 @@ function showCongratulationsMessage(level, starsEarned) {
             ctx.fillText('Congratulations!', canvas.width / 2, canvas.height / 2 - 80);
 
             ctx.font = '20px Arial';
-            ctx.fillText(`You achieved level ${level}.`, canvas.width / 2, canvas.height / 2 - 40);
+            ctx.fillText(`You ${level === 'Random' ? 'completed the random level' : `achieved level ${level}`}.`, canvas.width / 2, canvas.height / 2 - 40);
 
-            if (starsEarned === 3) {
+            if (level === 'Random') {
                 ctx.font = 'italic 18px Arial, sans-serif';
-                perfectScoreOpacity = 0.8 + 0.2 * Math.sin(time);
-                ctx.fillStyle = `rgba(255, 215, 0, ${perfectScoreOpacity})`;
-                ctx.fillText("Perfect! You used the minimum number of moves!", canvas.width / 2, canvas.height / 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+                if (remainingMoves === 0) {
+					perfectScoreOpacity = 0.8 + 0.2 * Math.sin(time);
+					ctx.fillStyle = `rgba(255, 215, 0, ${perfectScoreOpacity})`;
+                    ctx.fillText("Perfect! You used the minimum number of moves!", canvas.width / 2, canvas.height / 2);
+                } else {
+                    ctx.fillText(`You completed the level in ${storedRandomLevel.clickSequence.length - remainingMoves} moves. You can do better...`, canvas.width / 2, canvas.height / 2);
+                }
             } else {
-				ctx.font = 'italic 18px Arial, sans-serif';
-                ctx.fillStyle = `rgba(192, 192, 192, ${opacity})`;
-                ctx.fillText("... but you can do this with less moves ...", canvas.width / 2, canvas.height / 2);
+                if (starsEarned === 3) {
+                    ctx.font = 'italic 18px Arial, sans-serif';
+                    perfectScoreOpacity = 0.8 + 0.2 * Math.sin(time);
+                    ctx.fillStyle = `rgba(255, 215, 0, ${perfectScoreOpacity})`;
+                    ctx.fillText("Perfect! You used the minimum number of moves!", canvas.width / 2, canvas.height / 2);
+                } else {
+                    ctx.font = 'italic 18px Arial, sans-serif';
+                    ctx.fillStyle = `rgba(192, 192, 192, ${opacity})`;
+                    ctx.fillText("... but you can do this with less moves ...", canvas.width / 2, canvas.height / 2);
+                }
+
+                ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+                ctx.fillText(`Stars earned: ${'★'.repeat(starsEarned)}${'☆'.repeat(3-starsEarned)}`, canvas.width / 2, canvas.height / 2 + 60);
             }
 
-            ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
-            ctx.fillText(`Stars earned: ${'★'.repeat(starsEarned)}${'☆'.repeat(3-starsEarned)}`, canvas.width / 2, canvas.height / 2 + 60);
-
             // Dessiner les boutons
-            if (starsEarned < 3) {
-                drawButton("Try again", canvas.width / 2 - 100, canvas.height / 2 + 120, 180, 40, hoveredButton === 'try');
-                drawButton("Next level", canvas.width / 2 + 100, canvas.height / 2 + 120, 180, 40, hoveredButton === 'next');
+			if (level === 'Random') {
+                if (remainingMoves === 0) {
+                    // Si le niveau aléatoire est complété avec le nombre de coups optimum
+                    drawButton("New random level", canvas.width / 2, canvas.height / 2 + 120, 180, 40, hoveredButton === 'new');
+                } else {
+                    // Si le niveau aléatoire n'est pas complété avec le nombre de coups optimum
+                    drawButton("Try again", canvas.width / 2 - 100, canvas.height / 2 + 120, 180, 40, hoveredButton === 'try');
+                    drawButton("New random level", canvas.width / 2 + 100, canvas.height / 2 + 120, 180, 40, hoveredButton === 'new');
+                }
             } else {
-                drawButton("Next level", canvas.width / 2, canvas.height / 2 + 120, 180, 40, hoveredButton === 'next');
+                // Pour les niveaux non aléatoires
+                if (starsEarned < 3) {
+                    drawButton("Try again", canvas.width / 2 - 100, canvas.height / 2 + 120, 180, 40, hoveredButton === 'try');
+                    drawButton("Next level", canvas.width / 2 + 100, canvas.height / 2 + 120, 180, 40, hoveredButton === 'next');
+                } else {
+                    drawButton("Next level", canvas.width / 2, canvas.height / 2 + 120, 180, 40, hoveredButton === 'next');
+                }
             }
         }
 
@@ -1333,60 +1483,97 @@ function showCongratulationsMessage(level, starsEarned) {
 
         animate();
 
-        function handleClick(event) {
+		function handleClick(event) {
             if (animationComplete) {
                 const rect = canvas.getBoundingClientRect();
                 const x = event.clientX - rect.left;
                 const y = event.clientY - rect.top;
 
                 if (y > canvas.height / 2 + 100 && y < canvas.height / 2 + 140) {
-                    if (starsEarned < 3) {
-                        if (x > canvas.width / 2 - 190 && x < canvas.width / 2 - 10) {
-                            // "Try again" button clicked
-                            cleanup();
-                            resolve({ action: 'retry', starsEarned: 0 });
-                        } else if (x > canvas.width / 2 + 10 && x < canvas.width / 2 + 190) {
-                            // "Next level" button clicked
-                            cleanup();
-                            resolve({ action: 'next', starsEarned: starsEarned });
+                    if (level === 'Random') {
+                        if (remainingMoves === 0) {
+                            // Si le niveau aléatoire est complété avec le nombre de coups optimum
+                            if (x > canvas.width / 2 - 90 && x < canvas.width / 2 + 90) {
+                                cleanup();
+                                resolve({ action: 'newRandom', starsEarned: 0 });
+                            }
+                        } else {
+                            // Si le niveau aléatoire n'est pas complété avec le nombre de coups optimum
+                            if (x > canvas.width / 2 - 190 && x < canvas.width / 2 - 10) {
+                                cleanup();
+                                resolve({ action: 'retry', starsEarned: 0 });
+                            } else if (x > canvas.width / 2 + 10 && x < canvas.width / 2 + 190) {
+                                cleanup();
+                                resolve({ action: 'newRandom', starsEarned: 0 });
+                            }
                         }
                     } else {
-                        if (x > canvas.width / 2 - 90 && x < canvas.width / 2 + 90) {
-                            // "Next level" button clicked
-                            cleanup();
-                            resolve({ action: 'next', starsEarned: starsEarned });
+                        // Pour les niveaux non aléatoires
+                        if (starsEarned < 3) {
+                            if (x > canvas.width / 2 - 190 && x < canvas.width / 2 - 10) {
+                                cleanup();
+                                resolve({ action: 'retry', starsEarned: 0 });
+                            } else if (x > canvas.width / 2 + 10 && x < canvas.width / 2 + 190) {
+                                cleanup();
+                                resolve({ action: 'next', starsEarned: starsEarned });
+                            }
+                        } else {
+                            if (x > canvas.width / 2 - 90 && x < canvas.width / 2 + 90) {
+                                cleanup();
+                                resolve({ action: 'next', starsEarned: starsEarned });
+                            }
                         }
                     }
                 }
             }
         }
 
-        function handleMouseMove(event) {
-            const rect = canvas.getBoundingClientRect();
-            const x = event.clientX - rect.left;
-            const y = event.clientY - rect.top;
+		function handleMouseMove(event) {
+			const rect = canvas.getBoundingClientRect();
+			const x = event.clientX - rect.left;
+			const y = event.clientY - rect.top;
 
-            if (y > canvas.height / 2 + 100 && y < canvas.height / 2 + 140) {
-                if (starsEarned < 3) {
-                    if (x > canvas.width / 2 - 190 && x < canvas.width / 2 - 10) {
-                        hoveredButton = 'try';
-                    } else if (x > canvas.width / 2 + 10 && x < canvas.width / 2 + 190) {
-                        hoveredButton = 'next';
-                    } else {
-                        hoveredButton = null;
-                    }
-                } else {
-                    if (x > canvas.width / 2 - 90 && x < canvas.width / 2 + 90) {
-                        hoveredButton = 'next';
-                    } else {
-                        hoveredButton = null;
-                    }
-                }
-            } else {
-                hoveredButton = null;
-            }
-        }
-
+			if (y > canvas.height / 2 + 100 && y < canvas.height / 2 + 140) {
+				if (level === 'Random') {
+					if (remainingMoves === 0) {
+						// Si le niveau aléatoire est complété avec le nombre de coups optimum
+						if (x > canvas.width / 2 - 90 && x < canvas.width / 2 + 90) {
+							hoveredButton = 'new';
+						} else {
+							hoveredButton = null;
+						}
+					} else {
+						// Si le niveau aléatoire n'est pas complété avec le nombre de coups optimum
+						if (x > canvas.width / 2 - 190 && x < canvas.width / 2 - 10) {
+							hoveredButton = 'try';
+						} else if (x > canvas.width / 2 + 10 && x < canvas.width / 2 + 190) {
+							hoveredButton = 'new';
+						} else {
+							hoveredButton = null;
+						}
+					}
+				} else if (starsEarned < 3) {
+					// Pour les niveaux non aléatoires avec moins de 3 étoiles
+					if (x > canvas.width / 2 - 190 && x < canvas.width / 2 - 10) {
+						hoveredButton = 'try';
+					} else if (x > canvas.width / 2 + 10 && x < canvas.width / 2 + 190) {
+						hoveredButton = 'next';
+					} else {
+						hoveredButton = null;
+					}
+				} else {
+					// Pour les niveaux non aléatoires avec 3 étoiles
+					if (x > canvas.width / 2 - 90 && x < canvas.width / 2 + 90) {
+						hoveredButton = 'next';
+					} else {
+						hoveredButton = null;
+					}
+				}
+			} else {
+				hoveredButton = null;
+			}
+		}
+		
         function cleanup() {
             canvas.removeEventListener('click', handleClick);
             canvas.removeEventListener('mousemove', handleMouseMove);
@@ -1462,7 +1649,7 @@ function showFinalVictoryScreen() {
             ctx.font = 'italic bold 30px Arial, sans-serif';
             ctx.fillText('Congratulations!', centerX, 40);
 			ctx.font = 'italic bold 24px Arial, sans-serif';
-            ctx.fillText('You finished Untile v0.8.2', centerX, 80);
+            ctx.fillText('You finished Untile v0.8.3', centerX, 80);
 
             ctx.save();
             ctx.translate(centerX, centerY);
@@ -1540,7 +1727,7 @@ function showFinalVictoryScreen() {
 
 
 async function checkWinCondition() {
-    if (gameState.every(tile => tile === 0 || tile === 3 || tile === 4 || tile === 5 || tile === 6 || tile === 7)) {
+    if (tiles.every(tile => tile.currentState === 0 || tile.currentState === 3 || tile.currentState === 4 || tile.currentState === 5 || tile.currentState === 6 || tile.currentState === 7)) {
         isTransitioning = true;
         isLevelTransition = true;
         setButtonsEnabled(false);
@@ -1551,16 +1738,19 @@ async function checkWinCondition() {
             
             await new Promise(resolve => setTimeout(resolve, 100));
             
-            let starsEarned = calculateStarsEarned();
+            let starsEarned = currentLevel === 'random' ? 0 : calculateStarsEarned();
             
             hexagonContainer.style.display = 'none';
-            const result = await showCongratulationsMessage(currentLevel + 1, starsEarned);
+            const result = await showCongratulationsMessage(currentLevel === 'random' ? 'Random' : currentLevel + 1, starsEarned);
             
             if (result.action === 'next') {
                 totalStars += result.starsEarned;
                 updateStarsDisplay();
-                currentLevel++;
-				updateElementsVisibility();
+                if (currentLevel !== 'random') {
+                    currentLevel++;
+                    updateLevelSelector(currentLevel);
+                }
+                updateElementsVisibility();
                 updateInstructionVisibility();
                 
                 if (currentLevel === 20) {
@@ -1569,11 +1759,11 @@ async function checkWinCondition() {
                     await showTutorialImage('TwoRows.jpg');
                 } else if (currentLevel === 40) {  
                     await showTutorialImage('Lines.jpg');
-				} else if (currentLevel === 60) { 
+                } else if (currentLevel === 60) { 
                     await showTutorialImage('Rotation.jpg');
                 }
                 
-                if (currentLevel < levels.length) {
+                if (currentLevel < levels.length || currentLevel === 'random') {
                     hexagonContainer.style.display = '';
                     await initLevel(currentLevel);
                 } else {
@@ -1581,7 +1771,14 @@ async function checkWinCondition() {
                 }
             } else if (result.action === 'retry') {
                 hexagonContainer.style.display = '';
-                await initLevel(currentLevel);
+                if (currentLevel === 'random') {
+                    await resetCurrentRandomLevel();
+                } else {
+                    await initLevel(currentLevel);
+                }
+            } else if (result.action === 'newRandom') {
+                hexagonContainer.style.display = '';
+                await generateNewRandomLevel();
             }
         } finally {
             isLevelTransition = false;
@@ -1635,12 +1832,29 @@ function setButtonsEnabled(enabled) {
 }
 
 function resetCurrentLevel() {
-    initLevel(currentLevel);
+    if (currentLevel === 'random' && storedRandomLevel) {
+        tiles = storedRandomLevel.grid.map((state, index) => ({
+            currentState: state,
+            initialState: storedRandomLevel.initialGrid[index],
+            flipCount: 0
+        }));
+        remainingMoves = storedRandomLevel.clickSequence.length;
+        history = [];
+        drawGrid();
+        updateMovesDisplay();
+    } else {
+        initLevel(currentLevel);
+    }
 }
 
-document.getElementById('undo-btn').addEventListener('mousedown', function(e) {
+document.getElementById('undo-btn').addEventListener('mouseup', function(e) {
     if (e.target.style.pointerEvents === 'none') return;
-    this.src = 'undo-button-clicked.png';
+    this.src = 'undo-button.png';
+    if (history.length > 0) {
+        tiles = history.pop();
+        drawGrid();
+        updateMovesDisplay();
+    }
 });
 
 document.getElementById('undo-btn').addEventListener('mouseup', function(e) {
@@ -1729,4 +1943,181 @@ function drawTileIndices() {
     }
 
     document.getElementById('game-container').appendChild(indicesLayer);
+}
+
+
+
+// Générateur de niveaux aléatoires
+
+function generateRandomLevel() {
+    console.log("Generating random level...");
+
+    function generateRandomGrid() {
+        const neutralTiles = [0, 3, 4, 5, 6];
+        return Array(19).fill().map(() => neutralTiles[Math.floor(Math.random() * neutralTiles.length)]);
+    }
+
+    function getClickableTiles(grid, clickedTiles) {
+        return grid.reduce((acc, tile, index) => {
+            if ((tile === 0 || tile === 3 || tile === 4 || tile === 5 || tile === 6) && !clickedTiles.includes(index)) {
+                acc.push(index);
+            }
+            return acc;
+        }, []);
+    }
+
+    function simulateClick(grid, initialGrid, tileIndex, flipCount) {
+    const newGrid = [...grid];
+    const clickedTileType = initialGrid[tileIndex];
+
+    function flipTile(index) {
+        const currentState = newGrid[index];
+        const initialTileState = initialGrid[index];
+        flipCount[index]++;
+
+        if (initialTileState === 2) {
+            newGrid[index] = (flipCount[index] % 2 === 1) ? 1 : (clickedTileType === 1 || clickedTileType === 2) ? 0 : clickedTileType;
+        } else if (initialTileState === 1) {
+            newGrid[index] = (flipCount[index] % 2 === 1) ? ((clickedTileType === 1 || clickedTileType === 2) ? 0 : clickedTileType) : 1;
+        } else {
+            newGrid[index] = (flipCount[index] % 2 === 1) ? 1 : initialTileState;
+        }
+    }
+
+        if (clickedTileType === 0) {
+            getAdjacentTiles(tileIndex).forEach(flipTile);
+        } else if (clickedTileType === 3) {
+            const adjacentTiles = getAdjacentTiles(tileIndex);
+            const secondRowTiles = getSecondRowTiles(tileIndex);
+            [...new Set([...adjacentTiles, ...secondRowTiles])].forEach(tile => {
+                if (tile !== tileIndex) flipTile(tile);
+            });
+        } else if (clickedTileType === 4) {
+            getVerticalColumnTiles(tileIndex).forEach(flipTile);
+        } else if (clickedTileType === 5) {
+            getDiagonalTilesTopLeftToBottomRight(tileIndex).forEach(flipTile);
+        } else if (clickedTileType === 6) {
+            getDiagonalTilesBottomLeftToTopRight(tileIndex).forEach(flipTile);
+        }
+
+        return newGrid;
+    }
+
+    let grid, initialGrid, clickSequence, clickableTiles, flipCount;
+    let attempts = 0;
+    const maxAttempts = 1000;
+
+    while (attempts < maxAttempts) {
+        attempts++;
+        initialGrid = generateRandomGrid();
+        grid = [...initialGrid];
+        clickSequence = [];
+        flipCount = new Array(grid.length).fill(0);
+
+        console.log(`Attempt ${attempts}:`);
+        console.log("Initial grid:", initialGrid);
+
+        for (let i = 0; i < 5; i++) {
+            clickableTiles = getClickableTiles(grid, clickSequence);
+            
+            if (clickableTiles.length === 0) {
+                console.log(`No more clickable tiles at step ${i + 1}. Restarting...`);
+                break;
+            }
+
+            const randomIndex = Math.floor(Math.random() * clickableTiles.length);
+            const clickedTile = clickableTiles[randomIndex];
+            clickSequence.push(clickedTile);
+            
+            // Simuler le clic
+            grid = simulateClick(grid, initialGrid, clickedTile, flipCount);
+            console.log(`After click ${i + 1} on tile ${clickedTile}:`, grid);
+        }
+
+        if (clickSequence.length === 5) {
+            console.log("Successfully generated a random level!");
+            console.log("Final grid:", grid);
+            console.log("Initial grid:", initialGrid);
+            console.log("Click sequence:", clickSequence);
+            return { grid, initialGrid, clickSequence };
+        }
+    }
+
+    console.log(`Failed to generate a valid level after ${maxAttempts} attempts.`);
+    return null;
+}
+
+// Test the generator
+const randomLevel = generateRandomLevel();
+if (randomLevel) {
+    console.log("Generated level:", randomLevel);
+} else {
+    console.log("Failed to generate a level.");
+}
+
+// fonction de création du niveau
+function createRandomLevel() {
+    const randomLevel = generateRandomLevel();
+    if (randomLevel) {
+        // Utilisez randomLevel.grid comme nouvelle grille de jeu
+        gameState = randomLevel.grid;
+        // Vous pouvez également utiliser randomLevel.clickSequence 
+        // pour déterminer le nombre optimal de coups
+        levels[currentLevel].optimalMoves = randomLevel.clickSequence.length;
+        drawGrid();
+        updateMovesDisplay();
+    } else {
+        console.error("Impossible de générer un niveau aléatoire.");
+    }
+}
+
+// Création d'un nouveau niveau aléatoire
+function generateNewRandomLevel() {
+    return new Promise(resolve => {
+        const randomLevel = generateRandomLevel();
+        if (randomLevel) {
+            currentLevel = 'random';
+            storedRandomLevel = randomLevel;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            hexagonContainer.innerHTML = '';
+            
+            tiles = randomLevel.grid.map((state, index) => ({
+                currentState: state,
+                initialState: randomLevel.initialGrid[index],
+                flipCount: 0
+            }));
+            remainingMoves = randomLevel.clickSequence.length;
+            history = [];
+            drawGrid();
+            updateMovesDisplay();
+            updateStarsDisplay();
+            updateElementsVisibility();
+            updateLevelSelector('random');
+            resolve();
+        } else {
+            console.error("Impossible de générer un niveau aléatoire.");
+            resolve();
+        }
+    });
+}
+
+function resetCurrentRandomLevel() {
+    return new Promise(resolve => {
+        if (storedRandomLevel) {
+            tiles = storedRandomLevel.grid.map((state, index) => ({
+                currentState: state,
+                initialState: storedRandomLevel.initialGrid[index],
+                flipCount: 0
+            }));
+            remainingMoves = storedRandomLevel.clickSequence.length;
+            history = [];
+            drawGrid();
+            updateMovesDisplay();
+            resolve();
+        } else {
+            console.error("No stored random level to reset.");
+            resolve();
+        }
+    });
 }
