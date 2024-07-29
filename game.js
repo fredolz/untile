@@ -21,6 +21,14 @@ let initialState = [];
 let flipCount = [];
 let tiles = [];
 let storedRandomLevel = null;
+let cleanupCongratulationsMessage = null;
+
+// Paramètres pour la génération de niveaux aléatoires
+const randomLevelConfigs = [
+  { name: "Random Easy", clicks: 4, tileTypes: [0], difficulty: 'easy' },
+  { name: "Random Medium", clicks: 4, tileTypes: [0, 4, 5, 6], difficulty: 'medium' },
+  { name: "Random Hard", clicks: 5, tileTypes: [0, 3, 4, 5, 6], difficulty: 'hard' }
+];
 
 // Définition des niveaux
 
@@ -132,31 +140,65 @@ separator.style.fontWeight = "bold";
 separator.style.backgroundColor = "#f0f0f0";
 levelSelect.appendChild(separator);
 
-const randomOption = document.createElement('option');
-randomOption.value = 'random';
-randomOption.textContent = 'Random';
-levelSelect.appendChild(randomOption);
+randomLevelConfigs.forEach((config, index) => {
+  const randomOption = document.createElement('option');
+  randomOption.value = `random-${index}`;
+  randomOption.textContent = config.name;
+  levelSelect.appendChild(randomOption);
+});
 
 // Ajouter un écouteur d'événements pour le changement de niveau
-levelSelect.addEventListener('change', (e) => {
+levelSelect.addEventListener('change', async (e) => {
     console.log("Level select changed");
     const selectedLevel = e.target.value;
     console.log("Selected level:", selectedLevel);
-    if (selectedLevel === 'random') {
-        console.log("Initializing random level");
-        initRandomLevel();
+    
+    if (cleanupCongratulationsMessage) {
+        cleanupCongratulationsMessage();
+        cleanupCongratulationsMessage = null;
+    }
+    
+    // Effacer complètement le canvas et le conteneur d'hexagones
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    hexagonContainer.innerHTML = '';
+    
+    // Réinitialiser les états du jeu
+    isLevelTransition = false;
+    isTransitioning = false;
+    
+    if (selectedLevel.startsWith('random-')) {
+        const configIndex = parseInt(selectedLevel.split('-')[1]);
+        const config = randomLevelConfigs[configIndex];
+        console.log("Initializing random level with config:", config);
+        await initRandomLevel(config);
     } else {
         currentLevel = parseInt(selectedLevel);
-        initLevel(currentLevel);
+        await initLevel(currentLevel);
     }
+    
+    // Assurez-vous que le conteneur d'hexagones est visible
+    hexagonContainer.style.display = '';
+    
+	setButtonsEnabled(true);
+	
     levelSelect.value = selectedLevel;
     console.log("Level select change handled");
 });
 
+
 function updateLevelSelector(level) {
-    const levelSelect = document.getElementById('level-select');
-    if (level === 'random') {
-        levelSelect.value = 'random';
+//    const levelSelect = document.getElementById('level-select');
+    if (typeof level === 'string' && level.startsWith('random-')) {
+        levelSelect.value = level;
+    } else if (level === 'random') {
+        // Trouver l'index du niveau aléatoire actuel
+        const randomIndex = randomLevelConfigs.findIndex(config => 
+            config.clicks === storedRandomLevel.config.clicks && 
+            config.tileTypes.toString() === storedRandomLevel.config.tileTypes.toString()
+        );
+        if (randomIndex !== -1) {
+            levelSelect.value = `random-${randomIndex}`;
+        }
     } else {
         levelSelect.value = level.toString();
     }
@@ -551,17 +593,18 @@ function showTutorialImage(imageName) {
 }
 
 function initLevel(level) {
-    return new Promise(resolve => {
+    return new Promise(async (resolve) => {
         isLevelTransition = false;
         isTransitioning = false;
-		updateLevelSelector(level);
-		
-		// Nettoyage complet du canvas et du conteneur d'hexagones
+        updateLevelSelector(level);
+        
+        // Nettoyage complet du canvas et du conteneur d'hexagones
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         hexagonContainer.innerHTML = '';
-		
+        hexagonContainer.style.display = ''; 
+        
         if (level === 'random') {
-            const randomLevel = generateRandomLevel();
+            const randomLevel = generateRandomLevel(storedRandomLevel.config.clicks, storedRandomLevel.config.tileTypes);
             if (randomLevel) {
                 tiles = randomLevel.grid.map((state, index) => ({
                     currentState: state,
@@ -571,6 +614,7 @@ function initLevel(level) {
                 remainingMoves = randomLevel.clickSequence.length;
             } else {
                 console.error("Impossible de générer un niveau aléatoire.");
+                resolve();
                 return;
             }
         } else {
@@ -586,30 +630,27 @@ function initLevel(level) {
         updateMovesDisplay();
         updateStarsDisplay();
         updateElementsVisibility();
-        setTimeout(resolve, 100);
+		setButtonsEnabled(true);
+        
+        // Utiliser setTimeout pour permettre au navigateur de mettre à jour l'affichage
+        setTimeout(() => {
+            resolve();
+        }, 100);
     });
 }
 
 // Fonction de génération de niveau aléatoire
-function initRandomLevel() {
+async function initRandomLevel(config) {
     console.log("Entering initRandomLevel");
     
     // Forcer l'utilisation d'une grande grille
-    const prevGridSize = isSmallGrid(currentLevel) ? SMALL_GRID_SIZE : LARGE_GRID_SIZE;
-    
-    // Nettoyer complètement l'affichage
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    hexagonContainer.innerHTML = '';
-    
-    // Forcer l'utilisation de la grande grille
     currentLevel = 'random';
-    const gridSize = LARGE_GRID_SIZE;
     
     // Générer le niveau aléatoire
-    const randomLevel = generateRandomLevel();
+    const randomLevel = generateRandomLevel(config.clicks, config.tileTypes);
     if (randomLevel) {
         console.log("Random level generated:", randomLevel);
-        storedRandomLevel = randomLevel;
+        storedRandomLevel = { ...randomLevel, config };
         
         // Créer les tuiles pour la grande grille
         tiles = Array(LARGE_GRID_SIZE).fill().map((_, index) => {
@@ -629,27 +670,22 @@ function initRandomLevel() {
             }
         });
         
-        console.log("Tiles set up:", tiles);
-        
-        remainingMoves = randomLevel.clickSequence.length;
+        remainingMoves = config.clicks;
         history = [];
         
-        console.log("About to call drawGrid");
         drawGrid();
-        console.log("drawGrid called");
         updateMovesDisplay();
         updateStarsDisplay();
         updateElementsVisibility();
-
-        console.log("Flip counts for random level:", tiles.map(tile => tile.flipCount));
         updateLevelSelector('random');
-        console.log("initRandomLevel completed");
     } else {
         console.error("Impossible de générer un niveau aléatoire.");
         alert("Échec de la génération du niveau aléatoire. Retour au niveau précédent.");
-        currentLevel = prevGridSize === SMALL_GRID_SIZE ? 0 : 5; // Retour à un niveau compatible avec la taille de grille précédente
-        initLevel(currentLevel);
+        currentLevel = 5; // Retour à un niveau compatible avec la grande grille
+        await initLevel(currentLevel);
     }
+	
+	setButtonsEnabled(true);
 }
 
 
@@ -1142,11 +1178,21 @@ function drawLevelText() {
     ctx.textBaseline = 'top';
     ctx.fillText(currentLevel === 'random' ? 'Random Level' : `Level ${currentLevel + 1} / ${levels.length}`, centerX, 10);
     
-    // Ne pas afficher la difficulté et le nombre de coups optimal pour le premier niveau ou le niveau aléatoire
-    if (currentLevel !== 0 && currentLevel !== 'random') {
-        // Préparer le texte pour la difficulté et le nombre de coups optimal
-        const difficultyText = `Difficulty: ${levels[currentLevel].difficulty.toUpperCase()}`;
-        const movesText = `Optimal moves: ${levels[currentLevel].optimalMoves}`;
+    // Ne pas afficher la difficulté et le nombre de coups optimal pour le premier niveau
+    if (currentLevel !== 0) {
+        let difficultyText, movesText, difficulty;
+
+        if (currentLevel === 'random') {
+            const config = storedRandomLevel.config;
+            difficulty = config.difficulty;
+            difficultyText = `Difficulty: ${difficulty.toUpperCase()}`;
+            movesText = `Optimal clicks: ${config.clicks}`;
+        } else {
+            difficulty = levels[currentLevel].difficulty;
+            difficultyText = `Difficulty: ${difficulty.toUpperCase()}`;
+            movesText = `Optimal moves: ${levels[currentLevel].optimalMoves}`;
+        }
+
         const combinedText = `${difficultyText}  -  ${movesText}`;
         
         // Mesurer la largeur du texte combiné
@@ -1159,7 +1205,7 @@ function drawLevelText() {
         
         // Afficher la difficulté
         let difficultyColor;
-        switch(levels[currentLevel].difficulty) {
+        switch(difficulty) {
             case 'easy':
                 difficultyColor = '#81edbf';
                 break;
@@ -1579,10 +1625,14 @@ function showCongratulationsMessage(level, starsEarned) {
             canvas.removeEventListener('mousemove', handleMouseMove);
             cancelAnimationFrame(animationId);
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            hexagonContainer.innerHTML = '';
+            hexagonContainer.style.display = '';
         }
 
         canvas.addEventListener('click', handleClick);
         canvas.addEventListener('mousemove', handleMouseMove);
+        cleanupCongratulationsMessage = cleanup;
+        return cleanup;
     });
 }
 
@@ -1649,7 +1699,7 @@ function showFinalVictoryScreen() {
             ctx.font = 'italic bold 30px Arial, sans-serif';
             ctx.fillText('Congratulations!', centerX, 40);
 			ctx.font = 'italic bold 24px Arial, sans-serif';
-            ctx.fillText('You finished Untile v0.8.3', centerX, 80);
+            ctx.fillText('You finished Untile v0.8.4', centerX, 80);
 
             ctx.save();
             ctx.translate(centerX, centerY);
@@ -1743,6 +1793,15 @@ async function checkWinCondition() {
             hexagonContainer.style.display = 'none';
             const result = await showCongratulationsMessage(currentLevel === 'random' ? 'Random' : currentLevel + 1, starsEarned);
             
+			if (cleanupCongratulationsMessage) {
+                cleanupCongratulationsMessage();
+                cleanupCongratulationsMessage = null;
+            }
+			
+			// Nettoyer le canvas et le conteneur d'hexagones avant de passer au niveau suivant
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            hexagonContainer.innerHTML = '';
+			
             if (result.action === 'next') {
                 totalStars += result.starsEarned;
                 updateStarsDisplay();
@@ -1778,7 +1837,7 @@ async function checkWinCondition() {
                 }
             } else if (result.action === 'newRandom') {
                 hexagonContainer.style.display = '';
-                await generateNewRandomLevel();
+                await generateNewRandomLevel(storedRandomLevel.config);
             }
         } finally {
             isLevelTransition = false;
@@ -1857,19 +1916,9 @@ document.getElementById('undo-btn').addEventListener('mouseup', function(e) {
     }
 });
 
-document.getElementById('undo-btn').addEventListener('mouseup', function(e) {
+document.getElementById('undo-btn').addEventListener('mousedown', function(e) {
     if (e.target.style.pointerEvents === 'none') return;
-    this.src = 'undo-button.png';
-    if (history.length > 0) {
-        gameState = history.pop();
-        drawGrid();
-        updateMovesDisplay();
-    }
-});
-
-document.getElementById('reset-btn').addEventListener('mousedown', function(e) {
-    if (e.target.style.pointerEvents === 'none') return;
-    this.src = 'restart-button-clicked.png';
+    this.src = 'undo-button-clicked.png';
 });
 
 document.getElementById('reset-btn').addEventListener('mouseup', function(e) {
@@ -1877,6 +1926,12 @@ document.getElementById('reset-btn').addEventListener('mouseup', function(e) {
     this.src = 'restart-button.png';
     resetCurrentLevel();
 });
+
+document.getElementById('reset-btn').addEventListener('mousedown', function(e) {
+    if (e.target.style.pointerEvents === 'none') return;
+    this.src = 'restart-button-clicked.png';
+});
+
 
 // Assurez-vous également de gérer le cas où l'utilisateur déplace la souris hors du bouton pendant le clic
 document.getElementById('undo-btn').addEventListener('mouseout', function() {
@@ -1949,13 +2004,12 @@ function drawTileIndices() {
 
 // Générateur de niveaux aléatoires
 
-function generateRandomLevel() {
+function generateRandomLevel(clicks, tileTypes) {
     console.log("Generating random level...");
 
-    function generateRandomGrid() {
-        const neutralTiles = [0, 3, 4, 5, 6];
-        return Array(19).fill().map(() => neutralTiles[Math.floor(Math.random() * neutralTiles.length)]);
-    }
+	function generateRandomGrid() {
+    return Array(19).fill().map(() => tileTypes[Math.floor(Math.random() * tileTypes.length)]);
+	}
 
     function getClickableTiles(grid, clickedTiles) {
         return grid.reduce((acc, tile, index) => {
@@ -2007,7 +2061,7 @@ function generateRandomLevel() {
     let attempts = 0;
     const maxAttempts = 1000;
 
-    while (attempts < maxAttempts) {
+	while (attempts < maxAttempts) {
         attempts++;
         initialGrid = generateRandomGrid();
         grid = [...initialGrid];
@@ -2017,7 +2071,7 @@ function generateRandomLevel() {
         console.log(`Attempt ${attempts}:`);
         console.log("Initial grid:", initialGrid);
 
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < clicks; i++) {
             clickableTiles = getClickableTiles(grid, clickSequence);
             
             if (clickableTiles.length === 0) {
@@ -2034,7 +2088,7 @@ function generateRandomLevel() {
             console.log(`After click ${i + 1} on tile ${clickedTile}:`, grid);
         }
 
-        if (clickSequence.length === 5) {
+        if (clickSequence.length === clicks) {
             console.log("Successfully generated a random level!");
             console.log("Final grid:", grid);
             console.log("Initial grid:", initialGrid);
@@ -2047,17 +2101,10 @@ function generateRandomLevel() {
     return null;
 }
 
-// Test the generator
-const randomLevel = generateRandomLevel();
-if (randomLevel) {
-    console.log("Generated level:", randomLevel);
-} else {
-    console.log("Failed to generate a level.");
-}
 
 // fonction de création du niveau
 function createRandomLevel() {
-    const randomLevel = generateRandomLevel();
+    const randomLevel = generateRandomLevel(config.clicks, config.tileTypes);
     if (randomLevel) {
         // Utilisez randomLevel.grid comme nouvelle grille de jeu
         gameState = randomLevel.grid;
@@ -2072,12 +2119,12 @@ function createRandomLevel() {
 }
 
 // Création d'un nouveau niveau aléatoire
-function generateNewRandomLevel() {
+function generateNewRandomLevel(config) {
     return new Promise(resolve => {
-        const randomLevel = generateRandomLevel();
+        const randomLevel = generateRandomLevel(config.clicks, config.tileTypes);
         if (randomLevel) {
             currentLevel = 'random';
-            storedRandomLevel = randomLevel;
+            storedRandomLevel = { ...randomLevel, config };
             
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             hexagonContainer.innerHTML = '';
@@ -2087,7 +2134,7 @@ function generateNewRandomLevel() {
                 initialState: randomLevel.initialGrid[index],
                 flipCount: 0
             }));
-            remainingMoves = randomLevel.clickSequence.length;
+            remainingMoves = config.clicks;
             history = [];
             drawGrid();
             updateMovesDisplay();
@@ -2110,7 +2157,7 @@ function resetCurrentRandomLevel() {
                 initialState: storedRandomLevel.initialGrid[index],
                 flipCount: 0
             }));
-            remainingMoves = storedRandomLevel.clickSequence.length;
+            remainingMoves = storedRandomLevel.config.clicks; // Utilisez le nouveau paramètre ici
             history = [];
             drawGrid();
             updateMovesDisplay();
