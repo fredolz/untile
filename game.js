@@ -158,12 +158,14 @@ levelSelect.addEventListener('change', async (e) => {
         cleanupCongratulationsMessage = null;
     }
     
+	isLevelTransition = false;
+	
     // Effacer complètement le canvas et le conteneur d'hexagones
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     hexagonContainer.innerHTML = '';
     
     // Réinitialiser les états du jeu
-    isLevelTransition = false;
+
     isTransitioning = false;
     
     if (selectedLevel.startsWith('random-')) {
@@ -543,52 +545,67 @@ function blinkGrid() {
 
 function showTutorialImage(imageName) {
     return new Promise(resolve => {
-        setButtonsEnabled(false);  // Désactiver les boutons
-        isLevelTransition = true; 
+        setButtonsEnabled(false);
+        isLevelTransition = true;
         const tutorialImage = new Image();
         tutorialImage.src = imageName;
         
-        tutorialImage.onload = () => {
-            let opacity = 0;
-            const fadeInDuration = 200;
-            const startTime = Date.now();
+        let animationId;
+        let opacity = 0;
+        let isAnimationComplete = false;
 
-            function animate() {
-                const currentTime = Date.now();
-                const elapsedTime = currentTime - startTime;
-                opacity = Math.min(elapsedTime / fadeInDuration, 1);
+        function drawTutorialImage() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Fond semi-transparent
+            ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * opacity})`;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const imageWidth = 480;
+            const imageHeight = 400;
+            const x = (canvas.width - imageWidth) / 2;
+            const y = (canvas.height - imageHeight) / 2;
+            
+            ctx.globalAlpha = opacity;
+            ctx.drawImage(tutorialImage, x, y, imageWidth, imageHeight);
+            
+        }
 
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                
-                ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * opacity})`;
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
-                const imageWidth = 480;
-                const imageHeight = 400;
-                const x = (canvas.width - imageWidth) / 2;
-                const y = (canvas.height - imageHeight) / 2;
-                
-                ctx.globalAlpha = opacity;
-                ctx.drawImage(tutorialImage, x, y, imageWidth, imageHeight);
-                
-                ctx.globalAlpha = 1;
-
-                if (opacity < 1) {
-                    requestAnimationFrame(animate);
-                }
+        function animate() {
+            if (opacity < 1) {
+                opacity += 0.05;
+                drawTutorialImage();
+                animationId = requestAnimationFrame(animate);
+            } else {
+                isAnimationComplete = true;
+                drawTutorialImage(); // Dessiner une dernière fois pour s'assurer que tout est visible
             }
+        }
 
-            animate();
-
-            function handleClick() {
-                canvas.removeEventListener('click', handleClick);
-                isLevelTransition = false;
-                setButtonsEnabled(true);  // Réactiver les boutons
+        function handleClick(event) {
+            if (isAnimationComplete) {
+                cleanup();
                 resolve();
             }
-            
-            canvas.addEventListener('click', handleClick);
+        }
+
+        function cleanup() {
+            document.removeEventListener('click', handleClick);
+            cancelAnimationFrame(animationId);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            isLevelTransition = false;
+            setButtonsEnabled(true);
+        }
+
+        // Ajouter l'écouteur de clic au document entier
+        document.addEventListener('click', handleClick);
+
+        tutorialImage.onload = () => {
+            animate();
         };
+
+        // Stockez la fonction de nettoyage
+        cleanupCongratulationsMessage = cleanup;
     });
 }
 
