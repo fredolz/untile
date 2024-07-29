@@ -1186,7 +1186,7 @@ function drawLevelText() {
             const config = storedRandomLevel.config;
             difficulty = config.difficulty;
             difficultyText = `Difficulty: ${difficulty.toUpperCase()}`;
-            movesText = `Optimal clicks: ${config.clicks}`;
+            movesText = `Optimal moves: ${config.clicks}`;
         } else {
             difficulty = levels[currentLevel].difficulty;
             difficultyText = `Difficulty: ${difficulty.toUpperCase()}`;
