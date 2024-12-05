@@ -4,7 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Untile - Tile flipping Hexagonal Puzzle Game</title>
+	<!-- <script src="https://game-cdn.poki.com/scripts/v2/poki-sdk.js"></script>  -->
 <style>
+	@font-face {
+		font-family: 'Blouse';
+		src: url('Blouse.ttf') format('truetype');
+	}
+
+	#game-container, 
+	#moves-display,
+	#instruction,
+	#stars-display,
+	#continue-text,
+	#current-level-text,
+	#select-level,
+	.world-section h3,
+	.modal-content {
+		font-family: 'Blouse', sans-serif;
+	}
+
     body {
         background-color: black;
         color: white;
@@ -17,9 +35,27 @@
         box-sizing: border-box;
         font-family: Arial, sans-serif;
     }
+	
+	.game-title {
+    font-family: 'Blouse', sans-serif;
+    color: white;
+    text-align: center;
+    font-size: 70px;
+    margin-top: 35px;
+    text-shadow: 0 0 30px rgba(0, 255, 255, 0.7);
+	}
+	
     #instruction {
-        margin-bottom: 10px;
-        text-align: center;
+        display: block;
+		position: absolute;
+		width: 100%;
+		text-align: center;
+		color: lightyellow;
+		font-style: italic;
+		font-size: 20px;
+		z-index: 1000;
+		opacity: 0;
+		margin-top: 20px;
     }
     #game-container {
         position: relative;
@@ -28,10 +64,11 @@
         flex-direction: column;
         align-items: center;
     }
+	
     #game-canvas {
         border: 1px solid black;
         background-color: #000000;
-        margin-bottom: 10px;
+        margin-bottom: 110px;
     }
     #hexagon-container {
         position: absolute;
@@ -41,6 +78,11 @@
         height: 550px;
         pointer-events: auto;
     }
+	
+	#levels-button:hover {
+    background-color: rgba(60, 45, 30, 0.5);
+    transition: background-color 0.2s;
+	}
 
 	.hexagon {
 		position: absolute;
@@ -58,11 +100,35 @@
 
     #level-select {
         margin-bottom: 10px;
+		display: none; <!-- à commenter si on veut l'afficher pour le mode debug et accéder à n'importe quel niveau -->
     }
-    #moves-display {
-        font-weight: bold;
-        margin-bottom: 10px;
-    }
+
+	#continue-btn:hover, .random-level-btn:hover {
+	  transform: scale(1.05);
+	  filter: brightness(1.2);
+	}
+
+	#continue-btn, .random-level-btn {
+	  transition: all 0.2s ease-in-out;
+	}
+
+	#home-close-btn:hover {
+	  color: white;
+	}
+	
+	#home-button {
+    font-family: 'Blouse', sans-serif;
+    font-size: 16px;
+    color: #DDC76E;
+    background: none;
+    border: none;
+    cursor: pointer;
+	}
+
+	#home-button:hover {
+		color: white;
+	}
+
     button {
         margin: 5px;
         padding: 5px 10px;
@@ -79,7 +145,7 @@
     margin: 0 5px;
     width: 80px;  
     height: 80px; 
-	margin-top: -90px;
+	margin-top: -200px;
 }
 </style>
 </head>
@@ -87,10 +153,60 @@
 	<div id="instruction" style="height: 20px"><i>Click on the correct blank tile to flip the adjacent ones and clear the board.</i></div>
     
     <br>    
-    <div id="game-container">
+    <div id="game-container" >
+		<button id="home-button" style="position: fixed; top: 5px; left: 5px; font-size: 16px; z-index: 10000; color: rgba(221, 199, 110, 1); background-color: rgba(40, 30, 20, 0.5); padding: 5px 10px; border-radius: 5px; border: 1px solid #6e6337; cursor: pointer; display: none; height: 31px;">
+		  Home
+		</button>
+
+		<div id="home-screen" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 1); z-index: 10001; ">
+		<div class="game-title">Untile</div>
+		  <button id="home-close-btn" style="position: absolute; right: 20px; top: 20px; color: #DDC76E; font-size: 24px; cursor: pointer; background: none; border: none;"></button>
+		  
+		  <div style="position: absolute; top: 90px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; ">
+			<div id="continue-btn" style="width: 260px; min-height: 100px; background-color: rgba(34, 139, 34, 0.3); border: 1px solid #6e6337; border-radius: 8px; color: #DDC76E; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px;">
+				<span id="continue-text" style="font-size: 20px;">Continue Game</span>
+				<span id="current-level-text" style="font-size: 16px; opacity: 0.8; margin-top: 5px;"></span>
+			</div>
+			<button id="levels-button" style="width: 260px; height: 50px; background-color: rgba(34, 139, 34, 0.3); border: 1px solid #6e6337; border-radius: 8px; color: #DDC76E; font-size: 18px; cursor: pointer; ">
+			  Levels
+			</button>
+
+			<div class="random-levels" style="display: flex; justify-content: center; gap: 10px; margin-top: 20px;">
+			</div>
+		  </div>
+		
+		<div id="reset-progress-btn" style="
+			font-size: 10px;
+			color: rgba(221, 199, 110, 0.5);
+			background: none;
+			border: 1px solid rgba(110, 99, 55, 0.3);
+			padding: 5px 12px;
+			border-radius: 4px;
+			cursor: pointer;
+			margin-top: 30px;
+			transition: all 0.2s ease;
+			text-align: center;
+			position: absolute;
+			bottom: 15px;
+			left: 50%;
+			transform: translateX(-50%);
+		">Reset Progress</div>
+		
+		</div>
 	
-		<div id="stars-display" style="position: absolute; top: 10px; right: 10px; font-size: 20px;"></div>
-        <canvas id="game-canvas" width="1000" height="600"></canvas>
+
+		<div id="levels-modal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); z-index: 10001;">
+			<div class="modal-content" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: rgba(0, 20, 20, 0.95); padding: 20px; border-radius: 10px; border: 1px solid #AAAAAA; max-width: 80%; max-height: 80%; overflow-y: auto;">
+				<span class="close-button" style="position: absolute; right: 10px; top: 10px; color: #FFFFFF; cursor: pointer; font-size: 24px;">&times;</span>
+				<h2 style="color: #FFFFFF; text-align: center; margin-bottom: 20px; font-size: 24px;">Select Level</h2>
+				<div id="worlds-container" style="display: flex; flex-direction: column; gap: 20px;">
+					<!-- Les mondes seront injectés ici dynamiquement -->
+				</div>
+			</div>
+		</div>
+		<div id="stars-display" style="position: fixed; top: 5px; right: 5px; font-size: 16px; z-index: 10000; color: rgba(221, 199, 110, 1); background-color: rgba(40, 30, 20, 0.5); padding: 5px 10px; border-radius: 5px; border: 1px solid #6e6337; cursor: pointer; transition: all 0.2s ease;">
+		</div>
+        <canvas id="game-canvas" width="1000" height="500"></canvas>
         <div id="hexagon-container"></div>
 		
 		<div id="level-info" style="text-align: center; margin-top: 10px;">
@@ -100,17 +216,21 @@
 
         <br>
         <center>
-		<div id="button-container" style="display: flex; justify-content: center; gap: 10px; margin-top: 20px;">
+		<div id="button-container" style="display: flex; justify-content: center; gap: 10px; position: relative; z-index: 10; margin-top: -50px;">
 			<img id="undo-btn" src="undo-button.png" alt="Undo" class="control-button" title="Undo last move">
+			<img id="hint-btn" src="hint-button.png" alt="Hint" class="control-button" title="Show a hint">
 			<img id="reset-btn" src="restart-button.png" alt="Restart" class="control-button" title="Reset the current level">
 		</div>
         <br><br>
-		<!-- ajouter le style="display: none; si on veut cacher le nombre de coups restants pour optimiser -->
+		
 		<div id="moves-display"></div> 
-        <select id="level-select">
+        <select id="level-select" >
         </select>
 		</center>
     </div>
+	
+
+		
     <script src="game.js"></script>
     <script>
         // Script pour initialiser le menu déroulant

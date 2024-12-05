@@ -1,8 +1,24 @@
+// Initialisation du SDK Poki
+
+/*  if (PokiSDK.playtestCaptureHtmlForce) {
+  PokiSDK.playtestCaptureHtmlForce();
+}
+
+PokiSDK.init().then(() => {
+    console.log("Poki SDK successfully initialized");
+    // fire your function to continue to game
+}).catch(() => {
+    console.log("Initialized, something went wrong, load you game anyway");
+    // fire your function to continue to game
+});  */
+
+// Déclaration de constantes 
+
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 const hexagonContainer = document.getElementById('hexagon-container');
 
-const TILE_SIZE = 50;
+const TILE_SIZE = 35;
 const SMALL_GRID_SIZE = 7;
 const LARGE_GRID_SIZE = 19;
 const SHOW_TILE_NUMBERS = false;
@@ -22,6 +38,16 @@ let flipCount = [];
 let tiles = [];
 let storedRandomLevel = null;
 let cleanupCongratulationsMessage = null;
+let hasFirstClick = false;
+let openedFromHome = false;
+let openedFromLevel = false;
+
+// Déclarations de constantes pour le curseur d'indice
+let showHints = false;
+let lastAnimationTime = 0;
+const BLINK_DURATION = 1000; // Durée complète d'un cycle en millisecondes
+const MIN_OPACITY = 0.1;
+const MAX_OPACITY = 0.4;
 
 // Paramètres pour la génération de niveaux aléatoires
 const randomLevelConfigs = [
@@ -30,95 +56,480 @@ const randomLevelConfigs = [
   { name: "Random Hard", clicks: 5, tileTypes: [0, 3, 4, 5, 6], difficulty: 'hard' }
 ];
 
+// Définition des variables pour le système de prévisualisation
+let hoverAnimationFrame = null;
+let hoveredTileIndex = null;
+let hoverOpacity = 1;
+let hoverDirection = -1;
+
 // Définition des niveaux
 
 const levels = [
-  { grid: [1,1,1,0,1,1,1], optimalMoves: 1, difficulty: 'Tutorial' }, //lvl 1
-  { grid: [1,0,0,1,0,1,0], optimalMoves: 1, difficulty: 'Tutorial'  }, //lvl 2
-  { grid: [1,1,0,0,0,1,1], optimalMoves: 2, difficulty: 'easy'  }, //lvl 3
-  { grid: [0,1,0,0,0,0,1], optimalMoves: 2, difficulty: 'easy'  }, //lvl 4
-  { grid: [0,0,0,1,0,0,0], optimalMoves: 3, difficulty: 'easy'  }, //lvl 5 
-  { grid: [0,0,0,1,0,1,1,1,0,0,0,1,1,1,0,1,0,0,0], optimalMoves: 2, difficulty: 'easy'  }, //lvl 6
-  { grid: [0,0,0,1,1,0,0,1,0,0,0,0,1,1,1,0,0,0,0], optimalMoves: 2, difficulty: 'easy'  }, //lvl 7
-  { grid: [0,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,0], optimalMoves: 4, difficulty: 'easy'  }, //lvl 8
-  { grid: [1,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,0], optimalMoves: 3, difficulty: 'easy'  }, //lvl 9
-  { grid: [0,0,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0,0], optimalMoves: 2, difficulty: 'easy'  }, //lvl 10
-  { grid: [0,1,0,0,1,0,0,1,1,0,1,1,0,0,1,0,0,1,0], optimalMoves: 3, difficulty: 'easy'  }, //lvl 11
-  { grid: [1,0,1,1,0,1,1,0,0,1,1,1,1,1,1,0,0,0,1], optimalMoves: 3, difficulty: 'easy'  }, //lvl 12
-  { grid: [0,0,0,1,0,1,1,1,0,1,0,0,0,1,0,1,1,1,1], optimalMoves: 3, difficulty: 'easy'  }, //lvl 13
-  { grid: [1,0,0,0,1,1,0,1,0,0,0,1,1,1,0,1,0,0,0], optimalMoves: 3, difficulty: 'easy'  }, //lvl 14
-  { grid: [1,1,0,1,0,1,0,0,1,0,1,1,0,0,1,1,0,1,0], optimalMoves: 3, difficulty: 'easy'  }, //lvl 15
-  { grid: [1,1,1,0,0,0,0,0,1,1,1,0,0,1,0,1,1,1,0], optimalMoves: 3, difficulty: 'easy'  }, //lvl 16
-  { grid: [1,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,1], optimalMoves: 3, difficulty: 'medium'  }, //lvl 17
-  { grid: [0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,0,0,0], optimalMoves: 3, difficulty: 'medium'  }, //lvl 18
-  { grid: [1,0,0,0,0,1,1,0,0,0,0,1,0,0,0,1,0,0,1], optimalMoves: 3, difficulty: 'medium'  }, //lvl 19
-  { grid: [1,1,0,1,0,0,0,0,0,1,0,0,1,0,0,1,1,0,0], optimalMoves: 4, difficulty: 'medium'  }, //lvl 20
-  { grid: [2,2,2,0,2,2,2], optimalMoves: 2, difficulty: 'Tutorial'  }, //lvl 21 introduction tuile à 2 états 
-  { grid: [0,1,2,2,0,0,1], optimalMoves: 2, difficulty: 'easy'  }, //lvl 22
-  { grid: [0,0,1,0,2,0,2,1,0,0,1,2,2,0,2,0,0,0,0], optimalMoves: 3, difficulty: 'easy'  }, //lvl 23
-  { grid: [2,0,0,1,2,2,1,2,0,0,0,0,1,0,0,1,0,0,0], optimalMoves: 3, difficulty: 'easy'  }, //lvl 24
-  { grid: [0,1,1,0,1,0,2,2,1,0,1,1,1,0,2,0,1,1,0], optimalMoves: 4, difficulty: 'easy'  }, //lvl 25
-  { grid: [0,1,1,0,1,0,0,0,2,0,2,0,0,0,1,0,1,1,0], optimalMoves: 5, difficulty: 'medium'  }, //lvl 26
-  { grid: [2,1,2,1,1,0,0,0,0,1,0,0,0,0,0,0,1,0,0], optimalMoves: 4, difficulty: 'medium'  }, //lvl 27
-  { grid: [1,1,2,0,1,2,1,1,0,1,0,0,0,0,0,0,1,0,0], optimalMoves: 5, difficulty: 'medium'  }, //lvl 28
-  { grid: [0,0,1,0,0,1,0,1,0,1,1,0,0,0,1,0,2,2,2], optimalMoves: 6, difficulty: 'hard'  }, //lvl 29
-  { grid: [2,1,1,0,1,1,1,0,1,1,2,0,0,0,1,0,1,0,0], optimalMoves: 6, difficulty: 'hard'  }, //lvl 30
-  { grid: [1,1,1,1,1,1,1,1,1,3,1,1,1,1,1,1,1,1,1], optimalMoves: 1, difficulty: 'Tutorial'  }, //lvl 31 introduction tuile à double rangées
-  { grid: [3,1,1,3,3,3,1,1,1,3,1,1,1,1,3,1,3,3,3], optimalMoves: 2, difficulty: 'easy'  }, //lvl 32
-  { grid: [3,1,1,3,1,3,3,3,0,3,0,3,3,3,1,3,1,1,3], optimalMoves: 4, difficulty: 'easy'  }, //lvl 33
-  { grid: [3,1,1,3,1,3,3,3,3,1,3,3,3,3,3,3,1,1,1], optimalMoves: 3, difficulty: 'easy'  }, //lvl 34 (39 dans doc de LD)
-  { grid: [1,3,3,1,3,1,3,3,3,1,3,3,3,1,3,1,3,3,1], optimalMoves: 3, difficulty: 'easy'  }, //lvl 35 (40 dans doc de LD)
-  { grid: [3,3,3,3,1,3,2,2,3,3,3,2,2,3,1,3,3,3,3], optimalMoves: 4, difficulty: 'easy'  }, //lvl 36 (41 dans doc de LD) 
-  { grid: [3,3,3,3,3,3,3,1,3,2,3,1,3,3,3,3,3,3,3], optimalMoves: 4, difficulty: 'medium'  }, //lvl 37 (45 dans doc de LD) 
-  { grid: [3,3,3,3,3,3,2,1,3,3,3,1,3,3,3,3,2,3,3], optimalMoves: 4, difficulty: 'medium'  }, //lvl 38 (48 dans doc de LD) 
-  { grid: [3,3,3,3,1,3,3,3,3,3,3,0,0,1,0,1,2,2,1], optimalMoves: 4, difficulty: 'medium'  }, //lvl 39 
-  { grid: [1,0,3,0,2,1,3,0,3,2,3,0,3,1,2,0,3,0,1], optimalMoves: 5, difficulty: 'medium'  }, //lvl 40 
-  { grid: [1,0,0,4,0,0,1], optimalMoves: 1, difficulty: 'Tutorial'  }, //lvl 41 (50 dans doc de LD) introduction des tuiles retournant des lignes
-  { grid: [1,1,1,1,1,4,1,4,1,4,1,4,1,4,1,1,1,1,1], optimalMoves: 5, difficulty: 'easy'  }, //lvl 42 (~51 dans doc de LD) 
-  { grid: [5,5,5,1,5,1,5,1,4,1,4,5,5,5,5,5,5,5,5], optimalMoves: 2, difficulty: 'easy'  }, //lvl 43 (~52 dans doc de LD) 
-  { grid: [6,4,4,4,6,1,1,4,4,6,4,4,1,1,6,4,4,4,6], optimalMoves: 3, difficulty: 'easy'  }, //lvl 44 (53 dans doc de LD) 
-  { grid: [1,5,6,6,5,1,1,5,4,6,4,5,1,1,5,6,6,5,1], optimalMoves: 4, difficulty: 'medium'  }, //lvl 45 (54 dans doc de LD) 
-  { grid: [4,5,5,1,4,5,1,5,1,4,1,5,1,5,4,1,5,5,4], optimalMoves: 5, difficulty: 'medium'  }, //lvl 46 (55 dans doc de LD) 
-  { grid: [6,6,1,4,6,4,1,6,4,6,4,6,1,4,6,4,1,6,6], optimalMoves: 5, difficulty: 'medium'  }, //lvl 47 (56 dans doc de LD) 
-  { grid: [6,4,4,1,6,6,4,4,1,6,1,4,4,6,6,1,4,4,6], optimalMoves: 5, difficulty: 'medium'  }, //lvl 48 (57 dans doc de LD) 
-  { grid: [4,6,5,6,4,5,1,1,4,4,4,1,1,5,4,6,5,6,4], optimalMoves: 4, difficulty: 'medium'  }, //lvl 49 (58 dans doc de LD) 
-  { grid: [5,5,5,1,5,5,1,5,4,4,4,1,6,1,6,6,6,6,6], optimalMoves: 5, difficulty: 'medium'  }, //lvl 50 (59 dans doc de LD)
-  { grid: [4,4,4,5,2,6,4,4,5,4,6,1,1,5,4,6,4,4,4], optimalMoves: 4, difficulty: 'medium'  }, //lvl 51 (60 dans doc de LD) 
-  { grid: [5,5,6,2,5,1,5,6,4,4,5,6,5,2,6,1,6,5,6], optimalMoves: 5, difficulty: 'medium'  }, //lvl 52 (61 dans doc de LD) 
-  { grid: [4,1,1,5,5,6,5,6,2,4,2,6,5,6,6,5,1,1,4], optimalMoves: 4, difficulty: 'medium'  }, //lvl 53 (66 dans doc de LD) 
-  { grid: [6,6,6,4,1,2,5,6,4,4,4,6,5,4,1,2,5,5,5], optimalMoves: 4, difficulty: 'medium'  }, //lvl 54 (63 dans doc de LD) 
-  { grid: [2,2,6,5,6,6,4,6,4,4,2,4,5,6,5,5,2,5,2], optimalMoves: 5, difficulty: 'hard'  }, //lvl 55 (62 dans doc de LD) 
-  { grid: [6,1,6,4,6,2,4,4,4,5,4,4,4,2,5,4,6,1,6], optimalMoves: 5, difficulty: 'hard'  }, //lvl 56 (64 dans doc de LD) 
-  { grid: [6,6,6,4,2,4,6,1,4,4,4,5,1,4,2,4,5,5,5], optimalMoves: 6, difficulty: 'hard'  }, //lvl 57 (65 dans doc de LD) 
-  { grid: [4,5,5,4,2,4,5,5,4,4,4,6,6,4,1,2,6,5,4], optimalMoves: 5, difficulty: 'hard'  }, //lvl 58 (67 dans doc de LD) 
-  { grid: [4,5,6,2,4,5,6,1,4,5,4,1,6,5,4,6,6,5,2], optimalMoves: 6, difficulty: 'hard'  }, //lvl 59 (68 dans doc de LD) 
-  { grid: [5,2,1,6,5,5,5,6,4,4,4,6,5,5,6,6,2,1,6], optimalMoves: 7, difficulty: 'hard'  }, //lvl 60 (69 dans doc de LD) 
-  { grid: [0,0,0,1,1,0,1,0,0,7,0,0,0,1,0,0,0,0,0], optimalMoves: 2, difficulty: 'Tutorial'  }, //lvl 61 introduction de la tuile rotative 
-  { grid: [0,1,1,0,0,0,0,1,0,7,0,1,0,0,0,0,1,1,0], optimalMoves: 3, difficulty: 'easy'  }, //lvl 62
-  { grid: [0,0,0,0,0,0,0,0,0,7,0,0,0,1,0,1,0,0,0], optimalMoves: 3, difficulty: 'easy'  }, //lvl 63
-  { grid: [1,0,0,1,1,0,0,0,0,7,0,1,0,1,0,0,0,0,1], optimalMoves: 3, difficulty: 'easy'  }, //lvl 64
-  { grid: [0,1,1,0,0,0,0,0,0,7,0,0,0,0,0,0,1,1,0], optimalMoves: 5, difficulty: 'easy'  }, //lvl 65
-  { grid: [1,0,1,1,0,7,0,0,0,0,0,0,0,7,0,1,1,0,1], optimalMoves: 5, difficulty: 'medium'  }, //lvl 66
-  { grid: [1,1,0,0,7,0,0,1,1,0,1,7,7,1,0,1,1,1,0], optimalMoves: 6, difficulty: 'medium'  }, //lvl 67
-  { grid: [1,1,0,0,7,1,7,0,1,0,0,0,1,0,1,1,0,0,0], optimalMoves: 4, difficulty: 'medium'  }, //lvl 68
-  { grid: [0,1,1,1,7,0,0,1,1,7,1,0,0,0,1,0,1,1,0], optimalMoves: 5, difficulty: 'medium'  }, //lvl 69
-  { grid: [0,0,1,0,1,1,7,7,1,7,0,0,1,0,0,0,0,1,0], optimalMoves: 6, difficulty: 'medium'  }, //lvl 70
-  { grid: [0,1,0,0,0,0,2,0,2,7,0,0,0,0,0,0,1,0,0], optimalMoves: 3, difficulty: 'easy'  }, //lvl 71
-  { grid: [0,0,0,0,7,1,0,7,0,2,0,0,2,0,0,0,0,1,0], optimalMoves: 4, difficulty: 'medium'  }, //lvl 72
-  { grid: [1,0,1,1,1,0,2,0,1,7,0,0,2,0,0,0,1,1,0], optimalMoves: 5, difficulty: 'medium'  }, //lvl 73
-  { grid: [0,2,2,0,0,1,7,7,0,0,0,0,0,0,0,0,1,0,0], optimalMoves: 6, difficulty: 'medium'  }, //lvl 74
-  { grid: [0,1,1,0,0,0,0,0,0,0,1,7,7,0,0,2,0,1,0], optimalMoves: 7, difficulty: 'hard'  }, //lvl 75
-  { grid: [0,1,2,0,7,0,7,7,2,0,0,0,0,0,0,0,0,1,0], optimalMoves: 7, difficulty: 'hard'  }, //lvl 76
-  { grid: [0,2,2,2,1,2,1,1,1,7,1,0,0,0,0,0,0,0,0], optimalMoves: 7, difficulty: 'hard'  }, //lvl 77
-  { grid: [0,0,0,0,7,0,2,0,1,0,1,2,0,0,7,0,0,0,0], optimalMoves: 7, difficulty: 'hard'  }, //lvl 78
-  { grid: [2,1,1,0,7,1,1,0,0,7,0,0,1,1,7,0,1,1,2], optimalMoves: 8, difficulty: 'hard'  }, //lvl 79
-  { grid: [7,2,2,1,0,7,0,0,0,7,0,0,1,1,0,0,1,0,0], optimalMoves: 10, difficulty: 'hard'  }, //lvl 80
+  { grid: [1,1,1,0,1,1,1], optimalMoves: 1, difficulty: 'easy', world: 1  }, //lvl 1
+  { grid: [1,0,0,1,0,1,0], optimalMoves: 1, difficulty: 'easy', world: 1  }, //lvl 2
+  { grid: [1,1,0,0,0,1,1], optimalMoves: 2, difficulty: 'easy', world: 1  }, //lvl 3
+  { grid: [0,1,0,0,0,0,1], optimalMoves: 2, difficulty: 'easy', world: 1  }, //lvl 4
+  { grid: [0,0,0,1,0,0,0], optimalMoves: 3, difficulty: 'easy', world: 1  }, //lvl 5 
+  { grid: [0,0,0,1,0,1,1,1,0,0,0,1,1,1,0,1,0,0,0], optimalMoves: 2, difficulty: 'easy', world: 2 }, //lvl 6
+  { grid: [0,0,0,1,1,0,0,1,0,0,0,0,1,1,1,0,0,0,0], optimalMoves: 2, difficulty: 'easy', world: 2}, //lvl 7
+  { grid: [0,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,0], optimalMoves: 4, difficulty: 'easy', world: 2}, //lvl 8
+  { grid: [1,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,0], optimalMoves: 3, difficulty: 'easy', world: 2}, //lvl 9
+  { grid: [0,0,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0,0], optimalMoves: 2, difficulty: 'easy', world: 2}, //lvl 10
+  { grid: [0,1,0,0,1,0,0,1,1,0,1,1,0,0,1,0,0,1,0], optimalMoves: 3, difficulty: 'easy', world: 2}, //lvl 11
+  { grid: [1,0,1,1,0,1,1,0,0,1,1,1,1,1,1,0,0,0,1], optimalMoves: 3, difficulty: 'easy', world: 2}, //lvl 12
+  { grid: [0,0,0,1,0,1,1,1,0,1,0,0,0,1,0,1,1,1,1], optimalMoves: 3, difficulty: 'easy', world: 2}, //lvl 13
+  { grid: [1,0,0,0,1,1,0,1,0,0,0,1,1,1,0,1,0,0,0], optimalMoves: 3, difficulty: 'easy', world: 2}, //lvl 14
+  { grid: [1,1,0,1,0,1,0,0,1,0,1,1,0,0,1,1,0,1,0], optimalMoves: 3, difficulty: 'easy', world: 2}, //lvl 15
+  { grid: [1,1,1,0,0,0,0,0,1,1,1,0,0,1,0,1,1,1,0], optimalMoves: 3, difficulty: 'easy', world: 2}, //lvl 16
+  { grid: [1,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,1], optimalMoves: 3, difficulty: 'medium', world: 2}, //lvl 17
+  { grid: [0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,0,0,0], optimalMoves: 3, difficulty: 'medium', world: 2}, //lvl 18
+  { grid: [1,0,0,0,0,1,1,0,0,0,0,1,0,0,0,1,0,0,1], optimalMoves: 3, difficulty: 'medium', world: 2}, //lvl 19
+  { grid: [1,1,0,1,0,0,0,0,0,1,0,0,1,0,0,1,1,0,0], optimalMoves: 4, difficulty: 'medium', world: 2}, //lvl 20
+  { grid: [2,2,2,0,2,2,2], optimalMoves: 2, difficulty: 'easy', world: 3}, //lvl 21 introduction tuile à 2 états 
+  { grid: [0,1,2,2,0,0,1], optimalMoves: 2, difficulty: 'easy', world: 3}, //lvl 22
+  { grid: [0,0,1,0,2,0,2,1,0,0,1,2,2,0,2,0,0,0,0], optimalMoves: 3, difficulty: 'easy', world: 3}, //lvl 23
+  { grid: [2,0,0,1,2,2,1,2,0,0,0,0,1,0,0,1,0,0,0], optimalMoves: 3, difficulty: 'easy', world: 3}, //lvl 24
+  { grid: [0,1,1,0,1,0,2,2,1,0,1,1,1,0,2,0,1,1,0], optimalMoves: 4, difficulty: 'easy', world: 3}, //lvl 25
+  { grid: [0,1,1,0,1,0,0,0,2,0,2,0,0,0,1,0,1,1,0], optimalMoves: 5, difficulty: 'medium', world: 3}, //lvl 26
+  { grid: [2,1,2,1,1,0,0,0,0,1,0,0,0,0,0,0,1,0,0], optimalMoves: 4, difficulty: 'medium', world: 3}, //lvl 27
+  { grid: [1,1,2,0,1,2,1,1,0,1,0,0,0,0,0,0,1,0,0], optimalMoves: 5, difficulty: 'medium', world: 3}, //lvl 28
+  { grid: [0,0,1,0,0,1,0,1,0,1,1,0,0,0,1,0,2,2,2], optimalMoves: 6, difficulty: 'hard', world: 3}, //lvl 29
+  { grid: [2,1,1,0,1,1,1,0,1,1,2,0,0,0,1,0,1,0,0], optimalMoves: 6, difficulty: 'hard', world: 3}, //lvl 30
+  { grid: [1,1,1,1,1,1,1,1,1,3,1,1,1,1,1,1,1,1,1], optimalMoves: 1, difficulty: 'easy', world: 4}, //lvl 31 introduction tuile à double rangées
+  { grid: [3,1,1,3,3,3,1,1,1,3,1,1,1,1,3,1,3,3,3], optimalMoves: 2, difficulty: 'easy', world: 4}, //lvl 32
+  { grid: [3,1,1,3,1,3,3,3,0,3,0,3,3,3,1,3,1,1,3], optimalMoves: 4, difficulty: 'easy', world: 4}, //lvl 33
+  { grid: [3,1,1,3,1,3,3,3,3,1,3,3,3,3,3,3,1,1,1], optimalMoves: 3, difficulty: 'easy', world: 4}, //lvl 34 (39 dans doc de LD)
+  { grid: [1,3,3,1,3,1,3,3,3,1,3,3,3,1,3,1,3,3,1], optimalMoves: 3, difficulty: 'easy', world: 4}, //lvl 35 (40 dans doc de LD)
+  { grid: [3,3,3,3,1,3,2,2,3,3,3,2,2,3,1,3,3,3,3], optimalMoves: 4, difficulty: 'easy', world: 4}, //lvl 36 (41 dans doc de LD) 
+  { grid: [3,3,3,3,3,3,3,1,3,2,3,1,3,3,3,3,3,3,3], optimalMoves: 4, difficulty: 'medium', world: 4}, //lvl 37 (45 dans doc de LD) 
+  { grid: [3,3,3,3,3,3,2,1,3,3,3,1,3,3,3,3,2,3,3], optimalMoves: 4, difficulty: 'medium', world: 4}, //lvl 38 (48 dans doc de LD) 
+  { grid: [3,3,3,3,1,3,3,3,3,3,3,0,0,1,0,1,2,2,1], optimalMoves: 4, difficulty: 'medium', world: 4}, //lvl 39 
+  { grid: [1,0,3,0,2,1,3,0,3,2,3,0,3,1,2,0,3,0,1], optimalMoves: 5, difficulty: 'medium', world: 4}, //lvl 40 
+  { grid: [1,0,0,4,0,0,1], optimalMoves: 1, difficulty: 'easy', world: 5}, //lvl 41 (50 dans doc de LD) introduction des tuiles retournant des lignes
+  { grid: [1,1,1,1,1,4,1,4,1,4,1,4,1,4,1,1,1,1,1], optimalMoves: 5, difficulty: 'easy', world: 5}, //lvl 42 (~51 dans doc de LD) 
+  { grid: [5,5,5,1,5,1,5,1,4,1,4,5,5,5,5,5,5,5,5], optimalMoves: 2, difficulty: 'easy', world: 5}, //lvl 43 (~52 dans doc de LD) 
+  { grid: [6,4,4,4,6,1,1,4,4,6,4,4,1,1,6,4,4,4,6], optimalMoves: 3, difficulty: 'easy', world: 5}, //lvl 44 (53 dans doc de LD) 
+  { grid: [1,5,6,6,5,1,1,5,4,6,4,5,1,1,5,6,6,5,1], optimalMoves: 4, difficulty: 'medium', world: 5}, //lvl 45 (54 dans doc de LD) 
+  { grid: [4,5,5,1,4,5,1,5,1,4,1,5,1,5,4,1,5,5,4], optimalMoves: 5, difficulty: 'medium', world: 5}, //lvl 46 (55 dans doc de LD) 
+  { grid: [6,6,1,4,6,4,1,6,4,6,4,6,1,4,6,4,1,6,6], optimalMoves: 5, difficulty: 'medium', world: 5}, //lvl 47 (56 dans doc de LD) 
+  { grid: [6,4,4,1,6,6,4,4,1,6,1,4,4,6,6,1,4,4,6], optimalMoves: 5, difficulty: 'medium', world: 5}, //lvl 48 (57 dans doc de LD) 
+  { grid: [4,6,5,6,4,5,1,1,4,4,4,1,1,5,4,6,5,6,4], optimalMoves: 4, difficulty: 'medium', world: 5}, //lvl 49 (58 dans doc de LD) 
+  { grid: [5,5,5,1,5,5,1,5,4,4,4,1,6,1,6,6,6,6,6], optimalMoves: 5, difficulty: 'medium', world: 5}, //lvl 50 (59 dans doc de LD)
+  { grid: [4,4,4,5,2,6,4,4,5,4,6,1,1,5,4,6,4,4,4], optimalMoves: 4, difficulty: 'medium', world: 6}, //lvl 51 (60 dans doc de LD) 
+  { grid: [5,5,6,2,5,1,5,6,4,4,5,6,5,2,6,1,6,5,6], optimalMoves: 5, difficulty: 'medium', world: 6}, //lvl 52 (61 dans doc de LD) 
+  { grid: [4,1,1,5,5,6,5,6,2,4,2,6,5,6,6,5,1,1,4], optimalMoves: 4, difficulty: 'medium', world: 6}, //lvl 53 (66 dans doc de LD) 
+  { grid: [6,6,6,4,1,2,5,6,4,4,4,6,5,4,1,2,5,5,5], optimalMoves: 4, difficulty: 'medium', world: 6}, //lvl 54 (63 dans doc de LD) 
+  { grid: [2,2,6,5,6,6,4,6,4,4,2,4,5,6,5,5,2,5,2], optimalMoves: 5, difficulty: 'hard', world: 6}, //lvl 55 (62 dans doc de LD) 
+  { grid: [6,1,6,4,6,2,4,4,4,5,4,4,4,2,5,4,6,1,6], optimalMoves: 5, difficulty: 'hard', world: 6}, //lvl 56 (64 dans doc de LD) 
+  { grid: [6,6,6,4,2,4,6,1,4,4,4,5,1,4,2,4,5,5,5], optimalMoves: 6, difficulty: 'hard', world: 6}, //lvl 57 (65 dans doc de LD) 
+  { grid: [4,5,5,4,2,4,5,5,4,4,4,6,6,4,1,2,6,5,4], optimalMoves: 5, difficulty: 'hard', world: 6}, //lvl 58 (67 dans doc de LD) 
+  { grid: [4,5,6,2,4,5,6,1,4,5,4,1,6,5,4,6,6,5,2], optimalMoves: 6, difficulty: 'hard', world: 6}, //lvl 59 (68 dans doc de LD) 
+  { grid: [5,2,1,6,5,5,5,6,4,4,4,6,5,5,6,6,2,1,6], optimalMoves: 7, difficulty: 'hard', world: 6}, //lvl 60 (69 dans doc de LD) 
+  { grid: [0,0,0,1,1,0,1,0,0,7,0,0,0,1,0,0,0,0,0], optimalMoves: 2, difficulty: 'easy', world: 7}, //lvl 61 introduction de la tuile rotative 
+  { grid: [0,1,1,0,0,0,0,1,0,7,0,1,0,0,0,0,1,1,0], optimalMoves: 3, difficulty: 'easy', world: 7}, //lvl 62
+  { grid: [0,0,0,0,0,0,0,0,0,7,0,0,0,1,0,1,0,0,0], optimalMoves: 3, difficulty: 'easy', world: 7}, //lvl 63
+  { grid: [1,0,0,1,1,0,0,0,0,7,0,1,0,1,0,0,0,0,1], optimalMoves: 3, difficulty: 'easy', world: 7}, //lvl 64
+  { grid: [0,1,1,0,0,0,0,0,0,7,0,0,0,0,0,0,1,1,0], optimalMoves: 5, difficulty: 'easy', world: 7}, //lvl 65
+  { grid: [1,0,1,1,0,7,0,0,0,0,0,0,0,7,0,1,1,0,1], optimalMoves: 5, difficulty: 'medium', world: 7}, //lvl 66
+  { grid: [1,1,0,0,7,0,0,1,1,0,1,7,7,1,0,1,1,1,0], optimalMoves: 6, difficulty: 'medium', world: 7}, //lvl 67
+  { grid: [1,1,0,0,7,1,7,0,1,0,0,0,1,0,1,1,0,0,0], optimalMoves: 4, difficulty: 'medium', world: 7}, //lvl 68
+  { grid: [0,1,1,1,7,0,0,1,1,7,1,0,0,0,1,0,1,1,0], optimalMoves: 5, difficulty: 'medium', world: 7}, //lvl 69
+  { grid: [0,0,1,0,1,1,7,7,1,7,0,0,1,0,0,0,0,1,0], optimalMoves: 6, difficulty: 'medium', world: 7}, //lvl 70
+  { grid: [0,1,0,0,0,0,2,0,2,7,0,0,0,0,0,0,1,0,0], optimalMoves: 3, difficulty: 'easy', world: 8}, //lvl 71
+  { grid: [0,0,0,0,7,1,0,7,0,2,0,0,2,0,0,0,0,1,0], optimalMoves: 4, difficulty: 'medium', world: 8}, //lvl 72
+  { grid: [1,0,1,1,1,0,2,0,1,7,0,0,2,0,0,0,1,1,0], optimalMoves: 5, difficulty: 'medium', world: 8}, //lvl 73
+  { grid: [0,2,2,0,0,1,7,7,0,0,0,0,0,0,0,0,1,0,0], optimalMoves: 6, difficulty: 'medium', world: 8}, //lvl 74
+  { grid: [0,1,1,0,0,0,0,0,0,0,1,7,7,0,0,2,0,1,0], optimalMoves: 7, difficulty: 'hard', world: 8}, //lvl 75
+  { grid: [0,1,2,0,7,0,7,7,2,0,0,0,0,0,0,0,0,1,0], optimalMoves: 7, difficulty: 'hard', world: 8}, //lvl 76
+  { grid: [0,2,2,2,1,2,1,1,1,7,1,0,0,0,0,0,0,0,0], optimalMoves: 7, difficulty: 'hard', world: 8}, //lvl 77
+  { grid: [0,0,0,0,7,0,2,0,1,0,1,2,0,0,7,0,0,0,0], optimalMoves: 7, difficulty: 'hard', world: 8}, //lvl 78
+  { grid: [2,1,1,0,7,1,1,0,0,7,0,0,1,1,7,0,1,1,2], optimalMoves: 8, difficulty: 'hard', world: 8}, //lvl 79
+  { grid: [7,2,2,1,0,7,0,0,0,7,0,0,1,1,0,0,1,0,0], optimalMoves: 10, difficulty: 'hard', world: 8}, //lvl 80
   
 ];
+
+// Définition des indices par niveau
+const hintPositions = {
+  0: [3],    // Niveau 1: position 3
+  1: [2],   
+  2: [2, 4],  
+  3: [0, 5],    
+  4: [0, 4, 5], 
+  5: [8, 10],  
+  6: [8, 9], 
+  7: [0, 8, 10, 18],
+  8: [4, 13, 15],
+  9: [0, 3],
+  10: [3, 9, 15],
+  11: [1, 7, 16],
+  12: [8, 10, 14],
+  13: [1, 8, 10],
+  14: [2, 6, 12],
+  15: [4, 11, 12],
+  16: [1, 8, 16],
+  17: [8, 9, 10],
+  18: [2, 9, 17],
+  19: [2, 6, 10, 13],
+  20: [3],
+  21: [0, 5],
+  22: [5, 9],
+  23: [1, 2, 10],
+  24: [3, 5, 18, 9],
+  25: [3, 5, 13, 15, 9],
+  26: [4, 6, 13], 
+  27: [4, 7, 10, 12, 18],
+  28: [5, 10, 12, 14, 15],
+  29: [3, 4, 7, 15, 18],
+  30: [9],
+  31: [3, 5],
+  32: [0, 8, 10, 18],
+  33: [3, 5, 14],
+  34: [1, 10, 16],
+  35: [0, 8, 10, 18], 
+  36: [1, 5, 13, 17], 
+  37: [1, 5, 13, 17],
+  38: [0, 8, 10, 14],
+  39: [2, 3, 9, 15, 16],
+  40: [3],
+  41: [5, 7, 9, 11, 13],
+  42: [8, 11],
+  43: [8, 9, 10],
+  44: [1, 9, 10, 16],
+  45: [1, 2, 9, 16, 17],
+  46: [0, 8, 9, 10, 18],
+  47: [2, 4, 9, 14, 16],
+  48: [1, 2, 16, 17],
+  49: [1, 2, 9, 16, 17],
+  50: [8, 10, 16, 17],
+  51: [1, 2, 8, 16, 17],
+  52: [6, 7, 11, 12],
+  53: [2, 9, 10, 17],
+  54: [3, 7, 9, 12, 13],
+  55: [0, 6, 9, 12, 18],
+  56: [1, 2, 9, 10, 16, 17],
+  57: [0, 2, 12, 13, 17],
+  58: [8, 9, 10, 16, 17], 
+  59: [0, 6, 7, 8, 11, 12, 18],
+  60: [8, 9],
+  61: [0, 9, 18],
+  62: [9, 16, 17],
+  63: [1, 9, 16],
+  64: [0, 9, 18],
+  65: [1, 5, 9, 13, 17],
+  66: [3, 4, 5, 11, 12, 18],
+  67: [3, 4, 9, 10],
+  68: [0, 6, 9, 13, 15],
+  69: [0, 6, 7, 9, 15],
+  70: [3, 9, 13],
+  71: [5, 7, 9, 15],
+  72: [1, 5, 9, 13, 15],
+  73: [0, 6, 7, 13],
+  74: [3, 5, 11, 12],
+  75: [3, 7, 9, 11, 18], 
+  76: [0, 1, 2, 6, 7, 9],
+  77: [4, 13, 14, 15],
+  78: [2, 4, 9, 14, 16],
+  79: [0, 5, 8, 9, 15, 18]
+};
 
 window.currentLevel = currentLevel;
 window.levels = levels;
 
+// Fonction pour obtenir les informations sur les mondes
+function getWorldInfo() {
+  const worlds = {
+    1: { name: "Tutorial", startLevel: 0, endLevel: 4 },
+    2: { name: "Basics", startLevel: 5, endLevel: 19 },
+    3: { name: "Double-state", startLevel: 20, endLevel: 29 },
+    4: { name: "Double-row", startLevel: 30, endLevel: 39 },
+    5: { name: "Lines", startLevel: 40, endLevel: 49 },
+    6: { name: "Lines & Double-state", startLevel: 50, endLevel: 59 },
+    7: { name: "Rotations", startLevel: 60, endLevel: 69 },
+    8: { name: "Rotations & Double-state", startLevel: 70, endLevel: 79 }
+  };
+  return worlds;
+}
+
+// Fonction pour obtenir le numéro de niveau relatif au monde actuel
+function getWorldRelativeLevel(absoluteLevel) {
+    const worlds = getWorldInfo();
+    const worldNum = levels[absoluteLevel].world;
+    return absoluteLevel - worlds[worldNum].startLevel + 1;
+}
+
+// Detection d'un device mobile
+function isTouchDevice() {
+	return window.innerWidth <= 768;
+}
+
+
+let hintOpacity = 1;
+let hintDirection = -1;
+let hintAnimationFrame = null;
+
+function drawHintCursor(ctx, x, y, size, opacity = 1) {
+  const cursorSize = size * 0.3;
+  const yOffset = 5;
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  
+  // Dessiner le curseur
+  ctx.beginPath();
+  ctx.moveTo(x - cursorSize/2, y - cursorSize/2 - yOffset);
+  ctx.lineTo(x + cursorSize/2, y - cursorSize/2 - yOffset);
+  ctx.lineTo(x, y + cursorSize/2 - yOffset);
+  ctx.closePath();
+  
+  // Créer un dégradé pour le curseur
+  const gradient = ctx.createLinearGradient(
+    x - cursorSize/2, 
+    y - cursorSize/2 - yOffset, 
+    x + cursorSize/2, 
+    y + cursorSize/2 - yOffset
+  );
+  gradient.addColorStop(0, '#ffffff');
+  gradient.addColorStop(1, '#ffff00');
+  
+  ctx.fillStyle = gradient;
+  ctx.fill();
+  
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  
+  ctx.restore();
+}
+
+// Modification de la fonction animateHintCursors pour gérer les niveaux aléatoires
+function animateHintCursors(timestamp) {
+    // Si nous sommes dans un niveau aléatoire
+    if (currentLevel === 'random' && storedRandomLevel) {
+        if (!showHints) {
+            if (hintAnimationFrame) {
+                cancelAnimationFrame(hintAnimationFrame);
+                hintAnimationFrame = null;
+            }
+            return;
+        }
+
+        // Utiliser la séquence de clics comme positions d'indices
+        const hintClickSequence = storedRandomLevel.clickSequence;
+
+        // Initialiser le temps si c'est le premier appel
+        if (!lastAnimationTime) {
+            lastAnimationTime = timestamp;
+        }
+
+        // Calculer la progression basée sur le temps écoulé
+        const elapsedTime = timestamp - lastAnimationTime;
+        const normalizedTime = (elapsedTime % BLINK_DURATION) / BLINK_DURATION;
+        
+        // Calculer l'opacité avec une fonction sinusoïdale
+        hintOpacity = MIN_OPACITY + (MAX_OPACITY - MIN_OPACITY) * 
+                     (0.5 + 0.5 * Math.sin(2 * Math.PI * normalizedTime));
+
+        // Mettre à jour chaque curseur d'indice
+        hintClickSequence.forEach(position => {
+            const hexagon = hexagonContainer.querySelector(`.hexagon[data-index="${position}"]`);
+            if (hexagon) {
+                const front = hexagon.children[0];
+                const frontCtx = front.getContext('2d');
+                
+                // Redessiner l'hexagone
+                frontCtx.clearRect(0, 0, front.width, front.height);
+                drawHexagon(frontCtx, front.width/2, front.height/2, front.width/2, tiles[position].currentState);
+                
+                // Si c'est une tuile de type 7, redessiner le symbole de rotation
+                if (tiles[position].currentState === 7) {
+                    drawRotationSymbol(frontCtx, front.width/2, front.height/2, front.width/2);
+                }
+                
+                // Dessiner le curseur avec l'opacité actuelle
+                drawHintCursor(frontCtx, front.width/2, front.height/2, front.width/2, hintOpacity);
+            }
+        });
+
+        hintAnimationFrame = requestAnimationFrame(animateHintCursors);
+    } 
+    // Pour les niveaux normaux, garder le comportement existant
+    else {
+        // Si nous ne sommes pas dans un niveau avec des indices, ne rien faire
+        if (!hintPositions[currentLevel]) {
+            if (hintAnimationFrame) {
+                cancelAnimationFrame(hintAnimationFrame);
+                hintAnimationFrame = null;
+            }
+            return;
+        }
+
+        // Si nous sommes au niveau 6 ou plus et que showHints est false, ne pas afficher les indices
+        if (currentLevel >= 5 && !showHints) {
+            if (hintAnimationFrame) {
+                cancelAnimationFrame(hintAnimationFrame);
+                hintAnimationFrame = null;
+            }
+            return;
+        }
+
+        // Initialiser le temps si c'est le premier appel
+        if (!lastAnimationTime) {
+            lastAnimationTime = timestamp;
+        }
+
+        // Le reste du code existant pour les niveaux normaux...
+        const elapsedTime = timestamp - lastAnimationTime;
+        const normalizedTime = (elapsedTime % BLINK_DURATION) / BLINK_DURATION;
+        
+        hintOpacity = MIN_OPACITY + (MAX_OPACITY - MIN_OPACITY) * 
+                     (0.5 + 0.5 * Math.sin(2 * Math.PI * normalizedTime));
+
+        hintPositions[currentLevel].forEach(position => {
+            const hexagon = hexagonContainer.querySelector(`.hexagon[data-index="${position}"]`);
+            if (hexagon) {
+                const front = hexagon.children[0];
+                const frontCtx = front.getContext('2d');
+                
+                frontCtx.clearRect(0, 0, front.width, front.height);
+                drawHexagon(frontCtx, front.width/2, front.height/2, front.width/2, tiles[position].currentState);
+                
+                if (tiles[position].currentState === 7) {
+                    drawRotationSymbol(frontCtx, front.width/2, front.height/2, front.width/2);
+                }
+                
+                drawHintCursor(frontCtx, front.width/2, front.height/2, front.width/2, hintOpacity);
+            }
+        });
+
+        hintAnimationFrame = requestAnimationFrame(animateHintCursors);
+    }
+}
+
+// Modifier la fonction initLevel pour démarrer/arrêter l'animation des indices
+const originalInitLevel = window.initLevel;
+window.initLevel = function(level) {
+    // Réinitialiser l'animation et l'état des indices
+    if (hintAnimationFrame) {
+        cancelAnimationFrame(hintAnimationFrame);
+        hintAnimationFrame = null;
+    }
+    lastAnimationTime = 0;
+    showHints = false; // Toujours réinitialiser les indices à false pour le nouveau niveau
+
+    return originalInitLevel(level).then(() => {
+        drawGrid(); // S'assurer que la grille est redessinée sans indices
+        
+        // Démarrer l'animation des indices uniquement si nécessaire
+        if (level === 'random') {
+            // Ne rien faire ici, on attend que l'utilisateur active les indices
+        } else if (hintPositions[level] && level < 5) {
+            // Activer automatiquement les indices uniquement pour les premiers niveaux
+            showHints = true;
+            animateHintCursors();
+        }
+    });
+};
+
+// Arrêter l'animation des indices lors de la victoire
+const originalCheckWinCondition = window.checkWinCondition;
+window.checkWinCondition = async function() {
+  if (hintAnimationFrame) {
+    cancelAnimationFrame(hintAnimationFrame);
+    hintAnimationFrame = null;
+  }
+  return originalCheckWinCondition.call(this);
+};
+
+
+// Système de prévisualisation
+function startHoverPreview(tileIndex) {
+    // Si c'est un appareil tactile, on ne fait rien
+    if (isTouchDevice()) return;
+    
+    if (isLevelTransition || isFlipping || isTransitioning) return;
+    
+    const tile = tiles[tileIndex];
+    if (tile.currentState !== 0) return;
+    
+    hoveredTileIndex = tileIndex;
+    
+    if (hoverAnimationFrame) {
+        cancelAnimationFrame(hoverAnimationFrame);
+    }
+    
+    // Démarrer l'animation de clignotement
+    function animateHover() {
+        // Faire varier l'opacité entre 0.3 et 1
+        hoverOpacity += 0.015 * hoverDirection;
+        if (hoverOpacity <= 0.3) {
+            hoverOpacity = 0.3;
+            hoverDirection = 1;
+        } else if (hoverOpacity >= 1) {
+            hoverOpacity = 1;
+            hoverDirection = -1;
+        }
+        
+        // Obtenir les cases adjacentes
+        const adjacentTiles = getAdjacentTiles(tileIndex);
+        
+        // Mettre à jour l'apparence de chaque case adjacente
+        adjacentTiles.forEach(adjIndex => {
+            const hexagon = hexagonContainer.querySelector(`.hexagon[data-index="${adjIndex}"]`);
+            if (hexagon) {
+                const front = hexagon.children[0];
+                const frontCtx = front.getContext('2d');
+                frontCtx.clearRect(0, 0, front.width, front.height);
+                
+                // Dessiner l'état actuel
+                drawHexagon(frontCtx, front.width / 2, front.height / 2, front.width / 2, tiles[adjIndex].currentState);
+                
+                // Dessiner l'effet de survol par-dessus
+                const nextState = tiles[adjIndex].currentState === 1 ? 0 : 1;
+                frontCtx.globalAlpha = 1 - hoverOpacity;
+                drawHexagon(frontCtx, front.width / 2, front.height / 2, front.width / 2, nextState);
+                frontCtx.globalAlpha = 1;
+                
+                // Si la tuile est de type 7, redessiner le symbole de rotation
+                if (tiles[adjIndex].currentState === 7) {
+                    drawRotationSymbol(frontCtx, front.width / 2, front.height / 2, front.width / 2);
+                }
+            }
+        });
+        
+        if (hoveredTileIndex === tileIndex) {
+            hoverAnimationFrame = requestAnimationFrame(animateHover);
+        }
+    }
+    
+    animateHover();
+}
+
+function stopHoverPreview() {
+    if (hoverAnimationFrame) {
+        cancelAnimationFrame(hoverAnimationFrame);
+        hoverAnimationFrame = null;
+    }
+    
+    if (hoveredTileIndex !== null) {
+        // Restaurer l'apparence normale des cases adjacentes
+        const adjacentTiles = getAdjacentTiles(hoveredTileIndex);
+        adjacentTiles.forEach(adjIndex => {
+            const hexagon = hexagonContainer.querySelector(`.hexagon[data-index="${adjIndex}"]`);
+            if (hexagon) {
+                const front = hexagon.children[0];
+                const frontCtx = front.getContext('2d');
+                frontCtx.clearRect(0, 0, front.width, front.height);
+                drawHexagon(frontCtx, front.width / 2, front.height / 2, front.width / 2, tiles[adjIndex].currentState);
+                
+                // Redessiner le symbole de rotation si nécessaire
+                if (tiles[adjIndex].currentState === 7) {
+                    drawRotationSymbol(frontCtx, front.width / 2, front.height / 2, front.width / 2);
+                }
+            }
+        });
+    }
+    
+    hoveredTileIndex = null;
+}
 
 
 // Ajour de l'élément random en fin de liste
@@ -160,6 +571,12 @@ levelSelect.addEventListener('change', async (e) => {
     
 	isLevelTransition = false;
 	
+    showHints = false;
+    if (hintAnimationFrame) {
+        cancelAnimationFrame(hintAnimationFrame);
+        hintAnimationFrame = null;
+    }	
+	
     // Effacer complètement le canvas et le conteneur d'hexagones
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     hexagonContainer.innerHTML = '';
@@ -189,21 +606,55 @@ levelSelect.addEventListener('change', async (e) => {
 
 
 function updateLevelSelector(level) {
-//    const levelSelect = document.getElementById('level-select');
-    if (typeof level === 'string' && level.startsWith('random-')) {
-        levelSelect.value = level;
-    } else if (level === 'random') {
-        // Trouver l'index du niveau aléatoire actuel
-        const randomIndex = randomLevelConfigs.findIndex(config => 
-            config.clicks === storedRandomLevel.config.clicks && 
-            config.tileTypes.toString() === storedRandomLevel.config.tileTypes.toString()
-        );
-        if (randomIndex !== -1) {
-            levelSelect.value = `random-${randomIndex}`;
+    const levelSelect = document.getElementById('level-select');
+    levelSelect.innerHTML = '';
+    
+    const worlds = getWorldInfo();
+    
+    // Pour chaque monde
+    for (let worldNum = 1; worldNum <= 8; worldNum++) {
+        const world = worlds[worldNum];
+        
+        // Créer un groupe pour le monde
+        const worldGroup = document.createElement('optgroup');
+        worldGroup.label = world.name;
+        
+        // Ajouter les niveaux de ce monde
+        for (let i = world.startLevel; i <= world.endLevel; i++) {
+            const option = document.createElement('option');
+            option.value = i;
+            // Utiliser la numérotation relative au monde
+            const relativeLevel = i - world.startLevel + 1;
+            option.textContent = `Level ${relativeLevel}`;
+            if (i === level) {
+                option.selected = true;
+            }
+            worldGroup.appendChild(option);
         }
-    } else {
-        levelSelect.value = level.toString();
+        
+        levelSelect.appendChild(worldGroup);
     }
+    
+    // Ajouter le séparateur et les niveaux aléatoires
+    const separator = document.createElement('option');
+    separator.disabled = true;
+    separator.value = "";
+    separator.textContent = "─────────────";
+    separator.style.color = "#888";
+    separator.style.fontWeight = "bold";
+    separator.style.backgroundColor = "#f0f0f0";
+    levelSelect.appendChild(separator);
+    
+    // Ajouter les options de niveaux aléatoires
+    randomLevelConfigs.forEach((config, index) => {
+        const randomOption = document.createElement('option');
+        randomOption.value = `random-${index}`;
+        randomOption.textContent = config.name;
+        if (level === `random-${index}`) {
+            randomOption.selected = true;
+        }
+        levelSelect.appendChild(randomOption);
+    });
 }
 
 // Définition des variables de scoring
@@ -255,13 +706,13 @@ function updateInstructionVisibility() {
         instructionElement.style.position = 'absolute';
         instructionElement.style.width = '100%';
         instructionElement.style.textAlign = 'center';
-        instructionElement.style.top = `${hexagonRect.bottom - 50}px`; // 10px sous la grille
+        instructionElement.style.top = `${hexagonRect.bottom - 500}px`;
         instructionElement.style.left = '0';
-        instructionElement.style.color = 'white';
+        instructionElement.style.color = 'lightyellow';
 		instructionElement.style.fontStyle = 'italic'; 
-        instructionElement.style.fontSize = '18px';
+        instructionElement.style.fontSize = '13px';
         instructionElement.style.zIndex = '1000';
-        instructionElement.innerHTML = '<b>How to play?</b><br><br>Choose the right blank tile to flip the adjacent ones<br>and clear the board!';
+        instructionElement.innerHTML = '<b>Click</b> on the right blank tiles <br>to <b>flip</b> the others and <b>clear</b> the board!';
         
         // Animation de clignotement
         let opacity = 1;
@@ -416,7 +867,7 @@ function drawHexagon(ctx, x, y, size, state) {
 
 function createHexagonElement(x, y, size, state, index, isNeutral = false) {
     const hexagon = document.createElement('div');
-	hexagon.dataset.state = state;
+    hexagon.dataset.state = state;
     hexagon.className = 'hexagon';
     hexagon.style.left = `${x - size / 2}px`;
     hexagon.style.top = `${y - size / 2}px`;
@@ -428,17 +879,16 @@ function createHexagonElement(x, y, size, state, index, isNeutral = false) {
     front.width = size;
     front.height = size;
     drawHexagon(front.getContext('2d'), size / 2, size / 2, size / 2, state);
-	
-	
+    
     if (state === 7) {
         drawRotationSymbol(front.getContext('2d'), size / 2, size / 2, size / 2);
     }
-	
+    
     hexagon.appendChild(front);
 
     if (isNeutral) {
         hexagon.classList.add('neutral');
-        drawHexagon(front.getContext('2d'), size / 2, size / 2, size / 2, 3); // 3 pour la tuile neutre
+        drawHexagon(front.getContext('2d'), size / 2, size / 2, size / 2, 3);
     } else {
         const back = document.createElement('canvas');
         back.width = size;
@@ -448,11 +898,22 @@ function createHexagonElement(x, y, size, state, index, isNeutral = false) {
         hexagon.appendChild(back);
     }
 
-    // Rendre la tuile centrale du premier niveau semi-transparente	
-    if (currentLevel === 0 && index === 3) {
-        front.style.opacity = '0.1';  
-    }	
+    // if (currentLevel === 0 && index === 3) {
+        // front.style.opacity = '0.1';  
+    // }
 
+    // N'ajouter les événements de survol que sur les appareils non tactiles
+    if (!isTouchDevice()) {
+        hexagon.addEventListener('mouseenter', () => {
+            startHoverPreview(index);
+        });
+
+        hexagon.addEventListener('mouseleave', () => {
+            stopHoverPreview();
+        });
+    }
+
+    // Garder l'événement click pour tous les appareils
     hexagon.addEventListener('click', async (e) => {
         e.stopPropagation();
         const rect = canvas.getBoundingClientRect();
@@ -465,6 +926,7 @@ function createHexagonElement(x, y, size, state, index, isNeutral = false) {
 }
 
 
+
 function drawGrid() {
 	console.log("Entering drawGrid");
     console.log("Current level:", currentLevel);
@@ -474,7 +936,7 @@ function drawGrid() {
     hexagonContainer.innerHTML = '';
     
     const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2 + 20;
+    const centerY = canvas.height / 2 - 10 ;
     
     const hexPositions = currentLevel === 'random' ? largeHexPositions : (isSmallGrid(currentLevel) ? smallHexPositions : largeHexPositions);
     const gridSize = currentLevel === 'random' ? LARGE_GRID_SIZE : (isSmallGrid(currentLevel) ? SMALL_GRID_SIZE : LARGE_GRID_SIZE);
@@ -491,6 +953,10 @@ function drawGrid() {
     
     drawLevelText();
     drawTileIndices();
+
+	// fire loading function here
+	//PokiSDK.gameLoadingFinished();
+
 	
 }
 
@@ -547,6 +1013,15 @@ function showTutorialImage(imageName) {
     return new Promise(resolve => {
         setButtonsEnabled(false);
         isLevelTransition = true;
+		const movesDisplay = document.getElementById('moves-display');
+        const undoButton = document.getElementById('undo-btn');
+		const hintButton = document.getElementById('hint-btn');
+        const resetButton = document.getElementById('reset-btn');
+        
+        if (movesDisplay) movesDisplay.style.display = 'none';
+        if (undoButton) undoButton.style.display = 'none';
+		if (hintButton) hintButton.style.display = 'none';
+        if (resetButton) resetButton.style.display = 'none';
         const tutorialImage = new Image();
         tutorialImage.src = imageName;
         
@@ -561,14 +1036,25 @@ function showTutorialImage(imageName) {
             ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * opacity})`;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            const imageWidth = 480;
-            const imageHeight = 400;
+			// Définir les dimensions de l'image en fonction du device
+            let imageWidth, imageHeight;
+            if (isTouchDevice()) {
+                // Sur mobile, utiliser 95% de la largeur de l'écran
+                imageWidth = window.innerWidth * 0.95;
+                // Calculer la hauteur proportionnellement pour maintenir le ratio
+                const ratio = tutorialImage.height / tutorialImage.width;
+                imageHeight = imageWidth * ratio;
+            } else {
+                // Sur desktop, utiliser les dimensions fixes originales
+                imageWidth = 480;
+                imageHeight = 400;
+            }
+            
             const x = (canvas.width - imageWidth) / 2;
             const y = (canvas.height - imageHeight) / 2;
             
             ctx.globalAlpha = opacity;
             ctx.drawImage(tutorialImage, x, y, imageWidth, imageHeight);
-            
         }
 
         function animate() {
@@ -595,6 +1081,15 @@ function showTutorialImage(imageName) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             isLevelTransition = false;
             setButtonsEnabled(true);
+            // Restaurer les boutons seulement si on n'est pas au premier niveau
+            if (currentLevel !== 0) {
+                if (movesDisplay) movesDisplay.style.display = 'block';
+                if (undoButton) undoButton.style.display = 'block';
+                if (currentLevel >= 5) { // Restaurer le bouton hint uniquement si niveau ≥ 6
+                    if (hintButton) hintButton.style.display = 'block';
+                }
+                if (resetButton) resetButton.style.display = 'block';
+            }
         }
 
         // Ajouter l'écouteur de clic au document entier
@@ -660,6 +1155,21 @@ function initLevel(level) {
 async function initRandomLevel(config) {
     console.log("Entering initRandomLevel");
     
+    // Forcer l'affichage du conteneur d'hexagones
+    const hexagonContainer = document.getElementById('hexagon-container');
+    hexagonContainer.style.display = 'block';
+    
+    // Réinitialiser l'état des indices
+    showHints = false;
+    if (hintAnimationFrame) {
+        cancelAnimationFrame(hintAnimationFrame);
+        hintAnimationFrame = null;
+    }
+    
+    // Effacer complètement le canvas et le conteneur d'hexagones
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    hexagonContainer.innerHTML = '';
+    
     // Forcer l'utilisation d'une grande grille
     currentLevel = 'random';
     
@@ -678,7 +1188,6 @@ async function initRandomLevel(config) {
                     flipCount: 0
                 };
             } else {
-                // Remplir les tuiles supplémentaires avec un état neutre (par exemple, 0)
                 return {
                     currentState: 0,
                     initialState: 0,
@@ -690,19 +1199,21 @@ async function initRandomLevel(config) {
         remainingMoves = config.clicks;
         history = [];
         
-        drawGrid();
-        updateMovesDisplay();
-        updateStarsDisplay();
-        updateElementsVisibility();
-        updateLevelSelector('random');
+        // Forcer le redessin complet
+        requestAnimationFrame(() => {
+            drawGrid();
+            updateMovesDisplay();
+            updateStarsDisplay();
+            updateElementsVisibility();
+            updateLevelSelector('random');
+        });
+        
     } else {
         console.error("Impossible de générer un niveau aléatoire.");
         alert("Échec de la génération du niveau aléatoire. Retour au niveau précédent.");
-        currentLevel = 5; // Retour à un niveau compatible avec la grande grille
-        await initLevel(currentLevel);
     }
-	
-	setButtonsEnabled(true);
+    
+    setButtonsEnabled(true);
 }
 
 
@@ -797,14 +1308,14 @@ function rotateAdjacentTiles(tileIndex) {
 
 function updateMovesDisplay() {
     const movesDisplay = document.getElementById('moves-display');
-    movesDisplay.textContent = `Remaining moves for optimal solution: ${remainingMoves}`;
+	movesDisplay.style.color = remainingMoves < 0 ? '#ff9999' : 'lightyellow';
+    movesDisplay.textContent = `Remaining moves: ${remainingMoves}`;
     movesDisplay.style.position = 'absolute';
-    movesDisplay.style.bottom = '50px'; // Ajustez cette valeur pour remonter le texte
+    movesDisplay.style.top = '58px'; // Ajustez cette valeur pour remonter le texte
     movesDisplay.style.left = '0';
     movesDisplay.style.right = '0';
     movesDisplay.style.textAlign = 'center';
-    movesDisplay.style.color = 'white';
-    movesDisplay.style.fontSize = '16px';
+    movesDisplay.style.fontSize = '12px';
 	movesDisplay.style.fontStyle = 'italic';
 }
 
@@ -1183,86 +1694,54 @@ function animateRotation(tileIndex) {
 }
 
 
-
+// Affichage du niveau en cours
 
 function drawLevelText() {
     const centerX = canvas.width / 2;
     
     // Afficher le numéro du niveau ou "Random Level"
     ctx.fillStyle = 'white';
-    ctx.font = '24px Arial';
+    ctx.font = '18px Blouse';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(currentLevel === 'random' ? 'Random Level' : `Level ${currentLevel + 1} / ${levels.length}`, centerX, 10);
     
-    // Ne pas afficher la difficulté et le nombre de coups optimal pour le premier niveau
-    if (currentLevel !== 0) {
-        let difficultyText, movesText, difficulty;
-
-        if (currentLevel === 'random') {
-            const config = storedRandomLevel.config;
-            difficulty = config.difficulty;
-            difficultyText = `Difficulty: ${difficulty.toUpperCase()}`;
-            movesText = `Optimal moves: ${config.clicks}`;
-        } else {
-            difficulty = levels[currentLevel].difficulty;
-            difficultyText = `Difficulty: ${difficulty.toUpperCase()}`;
-            movesText = `Optimal moves: ${levels[currentLevel].optimalMoves}`;
-        }
-
-        const combinedText = `${difficultyText}  -  ${movesText}`;
-        
-        // Mesurer la largeur du texte combiné
-        ctx.font = 'italic 16px Arial';
-        const textWidth = ctx.measureText(combinedText).width;
-        
-        // Calculer les positions de début pour chaque partie du texte
-        const startX = centerX - textWidth / 2;
-        const y = 40; // Position verticale du texte
-        
-        // Afficher la difficulté
-        let difficultyColor;
-        switch(difficulty) {
-            case 'easy':
-                difficultyColor = '#81edbf';
-                break;
-            case 'medium':
-                difficultyColor = '#e8fda0';
-                break;
-            case 'hard':
-                difficultyColor = '#c91f8b';
-                break;
-            default:
-                difficultyColor = 'white';
-        }
-        ctx.fillStyle = difficultyColor;
-        ctx.textAlign = 'left';
-        ctx.fillText(difficultyText, startX, y);
-        
-        // Mesurer la largeur du texte de difficulté
-        const difficultyWidth = ctx.measureText(difficultyText).width;
-        
-        // Afficher le séparateur
-        ctx.fillStyle = 'white';
-        ctx.fillText('  -  ', startX + difficultyWidth, y);
-        
-        // Mesurer la largeur du séparateur
-        const separatorWidth = ctx.measureText('  -  ').width;
-        
-        // Afficher le nombre de coups optimal
-        ctx.fillStyle = 'lightblue';
-        ctx.fillText(movesText, startX + difficultyWidth + separatorWidth, y);
+    if (currentLevel === 'random') {
+        ctx.fillText('Random Level', centerX, 10);
+    } else {
+        const worlds = getWorldInfo();
+        const currentWorldNum = levels[currentLevel].world;
+        const worldName = worlds[currentWorldNum].name;
+        const relativeLevel = currentLevel - worlds[currentWorldNum].startLevel + 1;
+        ctx.fillText(`${worldName} - Level ${relativeLevel}`, centerX, 10);
     }
     
-    // Garder le texte 'Start!' pour le premier niveau
-    if (currentLevel === 0) {
-        const centerY = canvas.height / 2 + 20;
-        ctx.fillStyle = 'lightblue';
-        ctx.font = 'italic 16px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('Start!', centerX, centerY);
+    // Afficher la difficulté
+    let difficulty = currentLevel === 'random' ? 
+        storedRandomLevel.config.difficulty : 
+        levels[currentLevel].difficulty;
+    
+    let difficultyColor;
+    switch(difficulty) {
+        case 'easy':
+            difficultyColor = '#81edbf';
+            break;
+        case 'medium':
+            difficultyColor = '#e8fda0';
+            break;
+        case 'hard':
+            difficultyColor = '#c91f8b';
+            break;
+        case 'Tutorial':
+            difficultyColor = '#aaffff';
+            break;
+        default:
+            difficultyColor = 'white';
     }
+    
+    ctx.font = '12px Blouse';
+    ctx.fillStyle = difficultyColor;
+    ctx.textAlign = 'center';
+    ctx.fillText(`${difficulty.toUpperCase()}`, centerX, 40);
 }
     
 
@@ -1279,6 +1758,13 @@ function updateHexagonStates() {
             drawRotationSymbol(frontCtx, front.width / 2, front.height / 2, front.width / 2);
         }
         
+        // Redessiner le curseur d'indice uniquement si nécessaire
+        if (hintPositions[currentLevel] && 
+            hintPositions[currentLevel].includes(index) &&
+            (currentLevel < 5 || showHints)) {
+            drawHintCursor(frontCtx, front.width/2, front.height/2, front.width/2, hintOpacity);
+        }
+        
         if (back) {
             const backCtx = back.getContext('2d');
             backCtx.clearRect(0, 0, back.width, back.height);
@@ -1287,7 +1773,15 @@ function updateHexagonStates() {
         hexagon.style.transform = 'none'; // Réinitialiser la transformation
         hexagon.dataset.state = tiles[index].currentState; // Mettre à jour l'attribut data-state
     });
+    
     drawLevelText();
+
+    // Redémarrer l'animation des indices si elle n'est pas déjà en cours
+    if (!hintAnimationFrame && 
+        hintPositions[currentLevel] && 
+        (currentLevel < 5 || showHints)) {
+        animateHintCursors();
+    }
 }
 
 async function handleClick(x, y) {
@@ -1295,43 +1789,69 @@ async function handleClick(x, y) {
 
     const clickedTile = getTileFromCoordinates(x, y);
     if (clickedTile !== -1) {
+        // Add first click tracking
+        if (!hasFirstClick) {
+            hasFirstClick = true;
+            //PokiSDK.gameplayStart();
+        }
+		
+		// Capturer l'état actuel de l'animation avant de la désactiver
+        wasAnimating = hintAnimationFrame !== null;
+        
+        // Désactiver les indices au clic
+        showHints = false;
+        if (hintAnimationFrame) {
+            cancelAnimationFrame(hintAnimationFrame);
+            hintAnimationFrame = null;
+        }
+        
         const clickedTileState = tiles[clickedTile].currentState;
-        history.push(tiles.map(tile => ({ ...tile })));
+        
+        // Pour les tuiles actionnables, mettre à jour l'historique et les mouvements
+        if (clickedTileState === 0 || clickedTileState === 3 || 
+            clickedTileState === 4 || clickedTileState === 5 || 
+            clickedTileState === 6 || clickedTileState === 7) {
+            history.push(tiles.map(tile => ({ ...tile })));
+            remainingMoves--;
+            updateMovesDisplay();
 
-        let impactedTiles = [];
-        switch (clickedTileState) {
-            case 0:
-                impactedTiles = getAdjacentTiles(clickedTile);
-                await animateFlip(clickedTile);
-                break;
-            case 3:
-                impactedTiles = [...getAdjacentTiles(clickedTile), ...getSecondRowTiles(clickedTile)];
-                await animateFlipTwoRows(clickedTile);
-                break;
-            case 4:
-                impactedTiles = getVerticalColumnTiles(clickedTile);
-                await animateFlipVerticalColumn(clickedTile);
-                break;
-            case 5:
-                impactedTiles = getDiagonalTilesTopLeftToBottomRight(clickedTile);
-                await animateFlipDiagonal(clickedTile, getDiagonalTilesTopLeftToBottomRight);
-                break;
-            case 6:
-                impactedTiles = getDiagonalTilesBottomLeftToTopRight(clickedTile);
-                await animateFlipDiagonal(clickedTile, getDiagonalTilesBottomLeftToTopRight);
-                break;
-            case 7:
-                impactedTiles = getAdjacentTiles(clickedTile);
-                await animateRotation(clickedTile);
-                break;
+            let impactedTiles = [];
+            switch (clickedTileState) {
+                case 0:
+                    impactedTiles = getAdjacentTiles(clickedTile);
+                    await animateFlip(clickedTile);
+                    break;
+                case 3:
+                    impactedTiles = [...getAdjacentTiles(clickedTile), ...getSecondRowTiles(clickedTile)];
+                    await animateFlipTwoRows(clickedTile);
+                    break;
+                case 4:
+                    impactedTiles = getVerticalColumnTiles(clickedTile);
+                    await animateFlipVerticalColumn(clickedTile);
+                    break;
+                case 5:
+                    impactedTiles = getDiagonalTilesTopLeftToBottomRight(clickedTile);
+                    await animateFlipDiagonal(clickedTile, getDiagonalTilesTopLeftToBottomRight);
+                    break;
+                case 6:
+                    impactedTiles = getDiagonalTilesBottomLeftToTopRight(clickedTile);
+                    await animateFlipDiagonal(clickedTile, getDiagonalTilesBottomLeftToTopRight);
+                    break;
+                case 7:
+                    impactedTiles = getAdjacentTiles(clickedTile);
+                    await animateRotation(clickedTile);
+                    break;
+            }
+
+            await checkWinCondition();
         }
 
-        console.log("Impacted tiles:", impactedTiles);
-        console.log("Updated grid:", tiles.map(tile => tile.currentState));
-
-        remainingMoves--;
-        updateMovesDisplay();
-        await checkWinCondition();
+        // Redémarrer l'animation des indices si elle était active, quel que soit le type de tuile cliquée
+        if (wasAnimating && 
+            hintPositions[currentLevel] && 
+            (currentLevel < 5 || showHints)) {
+            animateHintCursors();
+        }
     }
 }
 
@@ -1449,8 +1969,133 @@ function getDiagonalTilesBottomLeftToTopRight(tileIndex) {
     return diagonalTiles;
 }
 
-function showCongratulationsMessage(level, starsEarned) {
+// Animation des étoiles vers le compteur
+function animateStarsToCounter(starsEarned) {
     return new Promise(resolve => {
+        if (starsEarned === 0) {
+            resolve();
+            return;
+        }
+
+        // Utiliser directement le canvas pour le positionnement initial
+		const canvasRect = canvas.getBoundingClientRect();
+        const startX = canvasRect.left + canvas.width / 2;  
+        const startY = canvasRect.top + canvas.height / 2 + 60;   
+
+        const starsContainer = document.createElement('div');
+        starsContainer.style.position = 'fixed';
+        starsContainer.style.top = '0';
+        starsContainer.style.left = '0';
+        starsContainer.style.width = '100%';
+        starsContainer.style.height = '100%';
+        starsContainer.style.pointerEvents = 'none';
+        starsContainer.style.zIndex = '10001';
+        document.body.appendChild(starsContainer);
+
+        // Position finale (compteur d'étoiles)
+        const starsDisplay = document.getElementById('stars-display');
+        const targetRect = starsDisplay.getBoundingClientRect();
+        const targetX = targetRect.right - 20;
+        const targetY = targetRect.top + targetRect.height / 2;
+
+        // Créer les étoiles
+        const stars = [];
+        const duration = 400;
+        const delayBetweenStars = 100;
+
+        for (let i = 0; i < starsEarned; i++) {
+            const star = document.createElement('div');
+            star.textContent = '★';
+            star.style.position = 'absolute';
+            star.style.fontSize = '24px';
+            star.style.color = '#DDC76E';
+			star.style.textShadow = '0 0 5px rgba(0, 0, 0, 1)';
+            star.style.transform = 'translate(-50%, -50%)';
+            star.style.opacity = '0.5';
+            star.style.transition = 'all 0.5s ease-out';
+            starsContainer.appendChild(star);
+
+            star.style.left = `${startX}px`;
+            star.style.top = `${startY}px`;
+
+            stars.push({
+                element: star,
+                startTime: performance.now() + (i * delayBetweenStars),
+                startX: startX,
+                startY: startY,
+                targetX: targetX,
+                targetY: targetY
+            });
+        }
+
+        function animate(currentTime) {
+            let allComplete = true;
+
+            stars.forEach(star => {
+                if (currentTime < star.startTime) {
+                    allComplete = false;
+                    return;
+                }
+
+                const elapsed = currentTime - star.startTime;
+                if (elapsed >= duration) return;
+
+                allComplete = false;
+                const progress = elapsed / duration;
+                
+                const controlX = star.startX + (star.targetX - star.startX) * 0.5;
+                const controlY = Math.min(star.startY, star.targetY) - 150;
+
+                const t = progress;
+                const x = Math.pow(1-t, 2) * star.startX + 
+                         2 * (1-t) * t * controlX + 
+                         Math.pow(t, 2) * star.targetX;
+                const y = Math.pow(1-t, 2) * star.startY + 
+                         2 * (1-t) * t * controlY + 
+                         Math.pow(t, 2) * star.targetY;
+
+                star.element.style.left = `${x}px`;
+                star.element.style.top = `${y}px`;
+                star.element.style.opacity = Math.min(1, 2 * (1 - progress));
+                star.element.style.transform = `translate(-50%, -50%) scale(${1 - 0.2 * progress})`;
+            });
+
+            if (!allComplete) {
+                requestAnimationFrame(animate);
+            } else {
+                setTimeout(() => {
+                    starsContainer.remove();
+                    resolve();
+                }, 500);
+            }
+        }
+
+        requestAnimationFrame(animate);
+    });
+}
+
+// Fenêtre de félicitations en fin de niveau
+function showCongratulationsMessage(level, starsEarned) {
+	//PokiSDK.gameplayStop();
+    return new Promise(resolve => {
+		
+		const movesDisplay = document.getElementById('moves-display');
+        const undoButton = document.getElementById('undo-btn');
+		const hintButton = document.getElementById('hint-btn');
+        const resetButton = document.getElementById('reset-btn');
+		const homeButton = document.getElementById('home-button');
+		const BUTTON_WIDTH = 140;
+		const BUTTON_SPACING = 20; 
+        
+        if (movesDisplay) movesDisplay.style.display = 'none';
+        if (undoButton) undoButton.style.display = 'none';
+		if (hintButton) hintButton.style.display = 'none';
+        if (resetButton) resetButton.style.display = 'none';
+		if (homeButton) { // Ajout
+            homeButton.style.display = 'none';
+            homeButton.style.pointerEvents = 'none';
+        }
+		
         let opacity = 0;
         let animationComplete = false;
         let perfectScoreOpacity = 1;
@@ -1466,70 +2111,89 @@ function showCongratulationsMessage(level, starsEarned) {
             ctx.textAlign = 'center';
             ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
 
-            ctx.font = 'bold 30px Arial';
-            ctx.fillText('Congratulations!', canvas.width / 2, canvas.height / 2 - 80);
+            // Message spécial pour le niveau 4 fin du tutorial
+            ctx.font = '26px Blouse';
+            if (level === 5) { // niveau 4 (index = 4)
+                ctx.fillText('Tutorial completed ✓', canvas.width / 2, canvas.height / 2 - 80);
+            } else {
+                ctx.fillText('Congratulations!', canvas.width / 2, canvas.height / 2 - 80);
+            }
 
-            ctx.font = '20px Arial';
-            ctx.fillText(`You ${level === 'Random' ? 'completed the random level' : `achieved level ${level}`}.`, canvas.width / 2, canvas.height / 2 - 40);
+            ctx.font = 'Italic 16px Blouse';
+			if (level === 'Random') {
+				ctx.fillText(`Random level completed!`, canvas.width / 2, canvas.height / 2 - 40);
+			} else {
+				const worlds = getWorldInfo();
+				const currentWorldNum = levels[level - 1].world;
+				const worldName = worlds[currentWorldNum].name;
+				const relativeLevel = level - worlds[currentWorldNum].startLevel;
+				ctx.fillText(`You completed ${worldName} - Level ${relativeLevel}.`, canvas.width / 2, canvas.height / 2 - 40);
+			}
 
             if (level === 'Random') {
-                ctx.font = 'italic 18px Arial, sans-serif';
+                ctx.font = 'italic 14px Blouse, sans-serif';
                 ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
-                if (remainingMoves === 0) {
-					perfectScoreOpacity = 0.8 + 0.2 * Math.sin(time);
-					ctx.fillStyle = `rgba(255, 215, 0, ${perfectScoreOpacity})`;
-                    ctx.fillText("Perfect! You used the minimum number of moves!", canvas.width / 2, canvas.height / 2);
+                if (remainingMoves >= 0) {
+                    perfectScoreOpacity = 0.8 + 0.2 * Math.sin(time);
+                    ctx.fillStyle = `rgba(255, 215, 0, ${perfectScoreOpacity})`;
+                    ctx.fillText("Perfect! Optimal number of moves!", canvas.width / 2, canvas.height / 2);
                 } else {
-                    ctx.fillText(`You completed the level in ${storedRandomLevel.clickSequence.length - remainingMoves} moves. You can do better...`, canvas.width / 2, canvas.height / 2);
+                    ctx.fillText(`You completed the level in ${storedRandomLevel.clickSequence.length - remainingMoves} moves.`, canvas.width / 2, canvas.height / 2);
+					ctx.fillText(`You can do better...`, canvas.width / 2, (canvas.height / 2) +20);
                 }
             } else {
                 if (starsEarned === 3) {
-                    ctx.font = 'italic 18px Arial, sans-serif';
+                    ctx.font = 'italic 14px Blouse, sans-serif';
                     perfectScoreOpacity = 0.8 + 0.2 * Math.sin(time);
                     ctx.fillStyle = `rgba(255, 215, 0, ${perfectScoreOpacity})`;
-                    ctx.fillText("Perfect! You used the minimum number of moves!", canvas.width / 2, canvas.height / 2);
+                    ctx.fillText("Perfect! Optimal number of moves!", canvas.width / 2, canvas.height / 2);
                 } else {
-                    ctx.font = 'italic 18px Arial, sans-serif';
+                    ctx.font = 'italic 14px Blouse, sans-serif';
                     ctx.fillStyle = `rgba(192, 192, 192, ${opacity})`;
                     ctx.fillText("... but you can do this with less moves ...", canvas.width / 2, canvas.height / 2);
                 }
-
-                ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
-                ctx.fillText(`Stars earned: ${'★'.repeat(starsEarned)}${'☆'.repeat(3-starsEarned)}`, canvas.width / 2, canvas.height / 2 + 60);
+                ctx.fillStyle = `rgba(221, 199, 110, ${opacity})`;
+                ctx.fillText(`Stars earned:`, canvas.width / 2, canvas.height / 2 + 40);
+				ctx.font = '16px Blouse, sans-serif';
+				ctx.fillText(`${'★'.repeat(starsEarned)}${'☆'.repeat(3-starsEarned)}`, canvas.width / 2, canvas.height / 2 + 60);
             }
 
             // Dessiner les boutons
 			if (level === 'Random') {
-                if (remainingMoves === 0) {
-                    // Si le niveau aléatoire est complété avec le nombre de coups optimum
-                    drawButton("New random level", canvas.width / 2, canvas.height / 2 + 120, 180, 40, hoveredButton === 'new');
-                } else {
-                    // Si le niveau aléatoire n'est pas complété avec le nombre de coups optimum
-                    drawButton("Try again", canvas.width / 2 - 100, canvas.height / 2 + 120, 180, 40, hoveredButton === 'try');
-                    drawButton("New random level", canvas.width / 2 + 100, canvas.height / 2 + 120, 180, 40, hoveredButton === 'new');
-                }
-            } else {
-                // Pour les niveaux non aléatoires
-                if (starsEarned < 3) {
-                    drawButton("Try again", canvas.width / 2 - 100, canvas.height / 2 + 120, 180, 40, hoveredButton === 'try');
-                    drawButton("Next level", canvas.width / 2 + 100, canvas.height / 2 + 120, 180, 40, hoveredButton === 'next');
-                } else {
-                    drawButton("Next level", canvas.width / 2, canvas.height / 2 + 120, 180, 40, hoveredButton === 'next');
-                }
-            }
+				if (remainingMoves >= 0) {
+					// Un seul bouton centré
+					drawButton("New random level", canvas.width / 2, canvas.height / 2 + 120, BUTTON_WIDTH, 40, hoveredButton === 'new');
+				} else {
+					// Deux boutons avec espacement réduit
+					drawButton("← Try again", canvas.width / 2 - (BUTTON_WIDTH/2 + BUTTON_SPACING), canvas.height / 2 + 120, BUTTON_WIDTH, 40, hoveredButton === 'try');
+					drawButton("New random level", canvas.width / 2 + (BUTTON_WIDTH/2 + BUTTON_SPACING), canvas.height / 2 + 120, BUTTON_WIDTH, 40, hoveredButton === 'new');
+				}
+			} else {
+				// Pour les niveaux non aléatoires
+				if (starsEarned < 3) {
+					// Deux boutons avec espacement réduit
+					drawButton("← Try again", canvas.width / 2 - (BUTTON_WIDTH/2 + BUTTON_SPACING), canvas.height / 2 + 120, BUTTON_WIDTH, 40, hoveredButton === 'try');
+					drawButton("Next level →", canvas.width / 2 + (BUTTON_WIDTH/2 + BUTTON_SPACING), canvas.height / 2 + 120, BUTTON_WIDTH, 40, hoveredButton === 'next');
+				} else {
+					// Un seul bouton centré
+					drawButton("Next level →", canvas.width / 2, canvas.height / 2 + 120, BUTTON_WIDTH, 40, hoveredButton === 'next');
+				}
+			}
         }
 
-        function drawButton(text, x, y, width, height, isHovered) {
-            ctx.fillStyle = isHovered ? 'rgba(70, 70, 70, ' + opacity + ')' : 'rgba(50, 50, 50, ' + opacity + ')';
-            ctx.fillRect(x - width/2, y - height/2, width, height);
-            ctx.strokeStyle = 'rgba(255, 255, 255, ' + opacity + ')';
-            ctx.strokeRect(x - width/2, y - height/2, width, height);
-            ctx.fillStyle = 'rgba(255, 255, 255, ' + opacity + ')';
-            ctx.font = '18px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(text, x, y);
-        }
+		function drawButton(text, x, y, width, height, isHovered) {
+			const buttonWidth = 160;  
+			const buttonHeight = 40;  
+			ctx.fillStyle = isHovered ? 'rgba(0, 70, 70, ' + opacity + ')' : 'rgba(0, 50, 50, ' + opacity + ')';
+			ctx.fillRect(x - buttonWidth/2, y - buttonHeight/2, buttonWidth, buttonHeight);
+			ctx.strokeStyle = 'rgba(0, 255, 255, ' + opacity + ')';
+			ctx.strokeRect(x - buttonWidth/2, y - buttonHeight/2, buttonWidth, buttonHeight);
+			ctx.fillStyle = 'rgba(0, 255, 255, ' + opacity + ')';
+			ctx.font = '13px Blouse';
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			ctx.fillText(text, x, y);
+		}
 
         function animate() {
             if (opacity < 1) {
@@ -1546,50 +2210,57 @@ function showCongratulationsMessage(level, starsEarned) {
 
         animate();
 
-		function handleClick(event) {
-            if (animationComplete) {
-                const rect = canvas.getBoundingClientRect();
-                const x = event.clientX - rect.left;
-                const y = event.clientY - rect.top;
-
-                if (y > canvas.height / 2 + 100 && y < canvas.height / 2 + 140) {
-                    if (level === 'Random') {
-                        if (remainingMoves === 0) {
-                            // Si le niveau aléatoire est complété avec le nombre de coups optimum
-                            if (x > canvas.width / 2 - 90 && x < canvas.width / 2 + 90) {
-                                cleanup();
-                                resolve({ action: 'newRandom', starsEarned: 0 });
-                            }
-                        } else {
-                            // Si le niveau aléatoire n'est pas complété avec le nombre de coups optimum
-                            if (x > canvas.width / 2 - 190 && x < canvas.width / 2 - 10) {
-                                cleanup();
-                                resolve({ action: 'retry', starsEarned: 0 });
-                            } else if (x > canvas.width / 2 + 10 && x < canvas.width / 2 + 190) {
-                                cleanup();
-                                resolve({ action: 'newRandom', starsEarned: 0 });
-                            }
-                        }
-                    } else {
-                        // Pour les niveaux non aléatoires
-                        if (starsEarned < 3) {
-                            if (x > canvas.width / 2 - 190 && x < canvas.width / 2 - 10) {
-                                cleanup();
-                                resolve({ action: 'retry', starsEarned: 0 });
-                            } else if (x > canvas.width / 2 + 10 && x < canvas.width / 2 + 190) {
-                                cleanup();
-                                resolve({ action: 'next', starsEarned: starsEarned });
-                            }
-                        } else {
-                            if (x > canvas.width / 2 - 90 && x < canvas.width / 2 + 90) {
-                                cleanup();
-                                resolve({ action: 'next', starsEarned: starsEarned });
-                            }
-                        }
-                    }
-                }
-            }
-        }
+		async function handleClick(event) {
+			if (animationComplete) {
+				if (level === 'Random') {
+					if (remainingMoves === 0) {
+						cleanup();
+						//PokiSDK.gameplayStart();
+						resolve({ action: 'newRandom', starsEarned: 0 });
+					} else {
+						const rect = canvas.getBoundingClientRect();
+						const x = event.clientX - rect.left;
+						const y = event.clientY - rect.top;
+						if (y > canvas.height / 2 + 100 && y < canvas.height / 2 + 140) {
+							if (x > canvas.width / 2 - 170 && x < canvas.width / 2 - 30) {
+								cleanup();
+								//PokiSDK.gameplayStart();
+								resolve({ action: 'retry', starsEarned: 0 });
+							} else if (x > canvas.width / 2 + 30 && x < canvas.width / 2 + 170) {
+								cleanup();
+								//PokiSDK.gameplayStart();
+								resolve({ action: 'newRandom', starsEarned: 0 });
+							}
+						}
+					}
+				} else {
+					if (starsEarned < 3) {
+						const rect = canvas.getBoundingClientRect();
+						const x = event.clientX - rect.left;
+						const y = event.clientY - rect.top;
+						if (y > canvas.height / 2 + 100 && y < canvas.height / 2 + 140) {
+							if (x > canvas.width / 2 - 170 && x < canvas.width / 2 - 30) {
+								cleanup();
+								//PokiSDK.gameplayStart();
+								resolve({ action: 'retry', starsEarned: 0 });
+							} else {
+								cleanup();
+								//PokiSDK.gameplayStart();
+								resolve({ action: 'next', starsEarned: starsEarned });
+							}
+						} else {
+							cleanup();
+							//PokiSDK.gameplayStart();
+							resolve({ action: 'next', starsEarned: starsEarned });
+						}
+					} else {
+						cleanup();
+						//PokiSDK.gameplayStart();
+						resolve({ action: 'next', starsEarned: starsEarned });
+					}
+				}
+			}
+		}
 
 		function handleMouseMove(event) {
 			const rect = canvas.getBoundingClientRect();
@@ -1597,54 +2268,59 @@ function showCongratulationsMessage(level, starsEarned) {
 			const y = event.clientY - rect.top;
 
 			if (y > canvas.height / 2 + 100 && y < canvas.height / 2 + 140) {
+				const centerX = canvas.width / 2;
+				const buttonLeft = centerX - (BUTTON_WIDTH/2 + BUTTON_SPACING/2);
+				const buttonRight = centerX + (BUTTON_WIDTH/2 + BUTTON_SPACING/2);
+
 				if (level === 'Random') {
 					if (remainingMoves === 0) {
-						// Si le niveau aléatoire est complété avec le nombre de coups optimum
-						if (x > canvas.width / 2 - 90 && x < canvas.width / 2 + 90) {
-							hoveredButton = 'new';
-						} else {
-							hoveredButton = null;
-						}
+						hoveredButton = x > centerX - BUTTON_WIDTH/2 && x < centerX + BUTTON_WIDTH/2 ? 'new' : null;
 					} else {
-						// Si le niveau aléatoire n'est pas complété avec le nombre de coups optimum
-						if (x > canvas.width / 2 - 190 && x < canvas.width / 2 - 10) {
+						if (x > buttonLeft - BUTTON_WIDTH/2 && x < buttonLeft + BUTTON_WIDTH/2) {
 							hoveredButton = 'try';
-						} else if (x > canvas.width / 2 + 10 && x < canvas.width / 2 + 190) {
+						} else if (x > buttonRight - BUTTON_WIDTH/2 && x < buttonRight + BUTTON_WIDTH/2) {
 							hoveredButton = 'new';
 						} else {
 							hoveredButton = null;
 						}
 					}
 				} else if (starsEarned < 3) {
-					// Pour les niveaux non aléatoires avec moins de 3 étoiles
-					if (x > canvas.width / 2 - 190 && x < canvas.width / 2 - 10) {
+					if (x > buttonLeft - BUTTON_WIDTH/2 && x < buttonLeft + BUTTON_WIDTH/2) {
 						hoveredButton = 'try';
-					} else if (x > canvas.width / 2 + 10 && x < canvas.width / 2 + 190) {
+					} else if (x > buttonRight - BUTTON_WIDTH/2 && x < buttonRight + BUTTON_WIDTH/2) {
 						hoveredButton = 'next';
 					} else {
 						hoveredButton = null;
 					}
 				} else {
-					// Pour les niveaux non aléatoires avec 3 étoiles
-					if (x > canvas.width / 2 - 90 && x < canvas.width / 2 + 90) {
-						hoveredButton = 'next';
-					} else {
-						hoveredButton = null;
-					}
+					hoveredButton = x > centerX - BUTTON_WIDTH/2 && x < centerX + BUTTON_WIDTH/2 ? 'next' : null;
 				}
 			} else {
 				hoveredButton = null;
 			}
 		}
 		
-        function cleanup() {
-            canvas.removeEventListener('click', handleClick);
-            canvas.removeEventListener('mousemove', handleMouseMove);
-            cancelAnimationFrame(animationId);
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            hexagonContainer.innerHTML = '';
-            hexagonContainer.style.display = '';
-        }
+		function cleanup() {
+			document.removeEventListener('click', handleClick);
+			cancelAnimationFrame(animationId);
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			isLevelTransition = false;
+			setButtonsEnabled(true);
+			
+			// Restaurer les boutons seulement si on n'est pas au premier niveau
+			if (currentLevel !== 0) {
+				if (movesDisplay) movesDisplay.style.display = 'block';
+				if (undoButton) undoButton.style.display = 'block';
+				if (currentLevel >= 5) { 
+					if (hintButton) hintButton.style.display = 'block';
+				}
+				if (resetButton) resetButton.style.display = 'block';
+				if (homeButton) { // Ajout
+					homeButton.style.display = 'block';
+					homeButton.style.pointerEvents = 'auto';
+				}
+			}
+		}
 
         canvas.addEventListener('click', handleClick);
         canvas.addEventListener('mousemove', handleMouseMove);
@@ -1686,19 +2362,18 @@ function drawVictoryHexagon(ctx, x, y, size, opacity = 1) {
 
 function showFinalVictoryScreen() {
     return new Promise(resolve => {
-		// Cacher les boutons undo et reset
+        // Masquer les éléments existants
         document.getElementById('undo-btn').style.display = 'none';
+        document.getElementById('hint-btn').style.display = 'none';
         document.getElementById('reset-btn').style.display = 'none';
-		// Cacher l'affichage des coups restants
         document.getElementById('moves-display').style.display = 'none';
-		// Cacher le sélecteur de niveaux
         document.getElementById('level-select').style.display = 'none';
-		// Cacher l'affichage des étoiles en haut à droite
         document.getElementById('stars-display').style.display = 'none';
-		
-        setButtonsEnabled(false);  // Désactiver les boutons
-		
-		let rotation = 0;
+        document.getElementById('hexagon-container').style.display = 'none';
+        
+        setButtonsEnabled(false);
+
+        let rotation = 0;
         const rotationSpeed = 0.01;
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
@@ -1708,15 +2383,71 @@ function showFinalVictoryScreen() {
         let expanding = true;
         let perfectScoreOpacity = 1;
         let perfectScoreIncreasing = false;
+        let animationFrameId = null;
+
+        // Ajouter le bouton de fermeture
+        const closeBtn = document.createElement('button');
+        closeBtn.innerHTML = '×';
+        closeBtn.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            font-size: 24px;
+            color: #DDC76E;
+            background: none;
+            border: none;
+            cursor: pointer;
+            z-index: 10002;
+        `;
+
+        document.body.appendChild(closeBtn);
+
+        function cleanup() {
+            closeBtn.remove();
+            canvas.removeEventListener('click', handleClick);
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Restaurer la visibilité des éléments de jeu
+            document.getElementById('hexagon-container').style.display = 'block';
+            document.getElementById('moves-display').style.display = 'block';
+            document.getElementById('stars-display').style.display = 'block';
+            document.getElementById('hint-btn').style.display = 'block';
+            document.getElementById('reset-btn').style.display = 'block';
+            document.getElementById('undo-btn').style.display = 'block';
+            
+            // Réinitialiser les états importants
+            isLevelTransition = false;
+            isTransitioning = false;
+            setButtonsEnabled(true);
+        }
+
+        function handleClose() {
+            cleanup();
+			showHomeScreen();
+            resolve('close');
+        }
+
+        closeBtn.addEventListener('click', handleClose);
+        
+        closeBtn.addEventListener('mouseenter', () => {
+            closeBtn.style.color = 'white';
+        });
+        
+        closeBtn.addEventListener('mouseleave', () => {
+            closeBtn.style.color = '#DDC76E';
+        });
 
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.textAlign = 'center';
             ctx.fillStyle = 'white';
-            ctx.font = 'italic bold 30px Arial, sans-serif';
+            ctx.font = 'italic bold 30px Blouse, sans-serif';
             ctx.fillText('Congratulations!', centerX, 40);
-			ctx.font = 'italic bold 24px Arial, sans-serif';
-            ctx.fillText('You finished Untile v0.8.4', centerX, 80);
+            ctx.font = 'italic bold 24px Blouse, sans-serif';
+            ctx.fillText('You finished Untile v0.8.28b', centerX, 80);
 
             ctx.save();
             ctx.translate(centerX, centerY);
@@ -1749,19 +2480,16 @@ function showFinalVictoryScreen() {
                 }
             }
 
-			// Afficher le nombre d'étoiles gagnées
             ctx.fillStyle = 'white';
-            ctx.font = 'italic 24px Arial, sans-serif';
+            ctx.font = 'italic 24px Blouse, sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText(`Total stars: ${totalStars} / ${maxStars} ★`, centerX, canvas.height - 60);
-			
-			// Afficher le texte "Perfect score" si le score est maximal
+            
             if (totalStars === maxStars) {
-                ctx.font = 'italic 24px Arial, sans-serif';
-                ctx.fillStyle = `rgba(255, 215, 0, ${perfectScoreOpacity})`;  // Couleur or avec opacité variable
+                ctx.font = 'italic 24px Blouse, sans-serif';
+                ctx.fillStyle = `rgba(255, 215, 0, ${perfectScoreOpacity})`;
                 ctx.fillText('Perfect score', centerX, canvas.height - 30);
 
-                // Faire clignoter le texte
                 if (perfectScoreIncreasing) {
                     perfectScoreOpacity += 0.02;
                     if (perfectScoreOpacity >= 1) {
@@ -1777,15 +2505,16 @@ function showFinalVictoryScreen() {
                 }
             }
 
-
-            requestAnimationFrame(animate);
+            animationFrameId = requestAnimationFrame(animate);
         }
 
         animate();
 
-        function handleClick() {
-            canvas.removeEventListener('click', handleClick);
-            resolve();
+        function handleClick(e) {
+            if (e.target === closeBtn) return;
+            cleanup();
+            showHomeScreen();
+            resolve('click');
         }
         
         canvas.addEventListener('click', handleClick);
@@ -1798,6 +2527,12 @@ async function checkWinCondition() {
         isTransitioning = true;
         isLevelTransition = true;
         setButtonsEnabled(false);
+		
+        showHints = false;
+        if (hintAnimationFrame) {
+            cancelAnimationFrame(hintAnimationFrame);
+            hintAnimationFrame = null;
+        }		
 
         try {
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -1819,44 +2554,78 @@ async function checkWinCondition() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             hexagonContainer.innerHTML = '';
 			
-            if (result.action === 'next') {
-                totalStars += result.starsEarned;
+			if (result.action === 'next') {
+			// Vérifier si le niveau était déjà complété avec 3 étoiles
+			const wasAlreadyPerfect = (gameProgress.starsPerLevel[currentLevel] || 0) === 3;
+			
+			if (wasAlreadyPerfect) {
+				// Si le niveau était déjà parfait, on se contente d'afficher le niveau suivant
+				// sans mettre à jour les étoiles ou autre
+				currentLevel++;
+				await initLevel(currentLevel);
+			} else {
+				// Comportement normal pour un niveau non-parfait
+				const starsEarned = calculateStarsEarned();
+				updateLevelStars(currentLevel, starsEarned);
+				
+				// Pour le bouton continue
+				const nextLevelToPlay = getNextLevelToPlay();
+				updateContinueHexButton(nextLevelToPlay);
+				
+				if (currentLevel !== 'random') {
+					currentLevel++; // S'assurer que cette ligne est exécutée
+					saveProgress();
+					updateLevelSelector(currentLevel);
+				}
+				
+				updateElementsVisibility();
+				updateInstructionVisibility();
+
+				const allLevelsCompleted = levels.every((level, index) => {
+					return (gameProgress.starsPerLevel[index] || 0) > 0;
+				});
+
+				if (allLevelsCompleted && currentLevel >= levels.length) {
+					const result = await showFinalVictoryScreen();
+					if (result === 'close') {
+						showHomeScreen();
+					}
+				} else {
+					if (currentLevel === 20) {
+						await showTutorialImage('Unlock.jpg');
+					} else if (currentLevel === 30) {
+						await showTutorialImage('TwoRows.jpg');
+					} else if (currentLevel === 40) {  
+						await showTutorialImage('Lines.jpg');
+					} else if (currentLevel === 60) { 
+						await showTutorialImage('Rotation.jpg');
+					}
+					
+					if (currentLevel < levels.length || currentLevel === 'random') {
+						hexagonContainer.style.display = '';
+						await initLevel(currentLevel);
+						await animateStarsToCounter(starsEarned);
+					}
+				}
+                
                 updateStarsDisplay();
-                if (currentLevel !== 'random') {
-                    currentLevel++;
-                    updateLevelSelector(currentLevel);
-                }
-                updateElementsVisibility();
-                updateInstructionVisibility();
-                
-                if (currentLevel === 20) {
-                    await showTutorialImage('Unlock.jpg');
-                } else if (currentLevel === 30) {
-                    await showTutorialImage('TwoRows.jpg');
-                } else if (currentLevel === 40) {  
-                    await showTutorialImage('Lines.jpg');
-                } else if (currentLevel === 60) { 
-                    await showTutorialImage('Rotation.jpg');
-                }
-                
-                if (currentLevel < levels.length || currentLevel === 'random') {
-                    hexagonContainer.style.display = '';
-                    await initLevel(currentLevel);
-                } else {
-                    await showFinalVictoryScreen();
-                }
-            } else if (result.action === 'retry') {
-                hexagonContainer.style.display = '';
-                if (currentLevel === 'random') {
-                    await resetCurrentRandomLevel();
-                } else {
-                    await initLevel(currentLevel);
-                }
+			}
+
+			} else if (result.action === 'retry') {
+				hexagonContainer.style.display = '';
+				if (currentLevel === 'random') {
+					await resetCurrentRandomLevel();
+					updateElementsVisibility(); // Ajout de cette ligne
+				} else {
+					await initLevel(currentLevel);
+				}
             } else if (result.action === 'newRandom') {
                 hexagonContainer.style.display = '';
                 await generateNewRandomLevel(storedRandomLevel.config);
+                await animateStarsToCounter(starsEarned);
             }
-        } finally {
+        }
+        finally {
             isLevelTransition = false;
             isTransitioning = false;
             setButtonsEnabled(true);
@@ -1880,29 +2649,36 @@ function updateStarsDisplay() {
 //Gestion de l'UI au premier niveau 
 function updateElementsVisibility() {
     const isFirstLevel = currentLevel === 0;
+    const showHintButton = currentLevel >= 5 || currentLevel === 'random'; // Afficher à partir du niveau 6 (index 5)
+    document.getElementById('home-button').style.display = showHintButton ? 'block' : 'none';
     document.getElementById('stars-display').style.display = isFirstLevel ? 'none' : 'block';
     document.getElementById('undo-btn').style.display = isFirstLevel ? 'none' : 'block';
+    document.getElementById('hint-btn').style.display = showHintButton ? 'block' : 'none';
     document.getElementById('reset-btn').style.display = isFirstLevel ? 'none' : 'block';
     document.getElementById('moves-display').style.display = isFirstLevel ? 'none' : 'block';
-	document.getElementById('level-select').style.display = isFirstLevel ? 'none' : 'block';
-
+    // document.getElementById('level-select').style.display = isFirstLevel ? 'none' : 'block';
 }
 
 //Gestion des boutons de contrôle
 
 function setButtonsEnabled(enabled) {
     const undoBtn = document.getElementById('undo-btn');
+    const hintBtn = document.getElementById('hint-btn');
     const resetBtn = document.getElementById('reset-btn');
     
     if (enabled) {
         undoBtn.style.opacity = '1';
+        hintBtn.style.opacity = '1';
         resetBtn.style.opacity = '1';
         undoBtn.style.pointerEvents = 'auto';
+        hintBtn.style.pointerEvents = 'auto';
         resetBtn.style.pointerEvents = 'auto';
     } else {
         undoBtn.style.opacity = '0.5';
+        hintBtn.style.opacity = '0.5';
         resetBtn.style.opacity = '0.5';
         undoBtn.style.pointerEvents = 'none';
+        hintBtn.style.pointerEvents = 'none';
         resetBtn.style.pointerEvents = 'none';
     }
 }
@@ -1941,6 +2717,11 @@ document.getElementById('undo-btn').addEventListener('mousedown', function(e) {
 document.getElementById('reset-btn').addEventListener('mouseup', function(e) {
     if (e.target.style.pointerEvents === 'none') return;
     this.src = 'restart-button.png';
+	showHints = false;
+    if (hintAnimationFrame) {
+        cancelAnimationFrame(hintAnimationFrame);
+        hintAnimationFrame = null;
+    }
     resetCurrentLevel();
 });
 
@@ -1957,6 +2738,34 @@ document.getElementById('undo-btn').addEventListener('mouseout', function() {
 
 document.getElementById('reset-btn').addEventListener('mouseout', function() {
     this.src = 'restart-button.png';
+});
+
+// Gestion du bouton d'indices
+document.getElementById('hint-btn').addEventListener('mouseup', function(e) {
+    if (e.target.style.pointerEvents === 'none') return;
+    this.src = 'hint-button.png';
+    if (currentLevel === 'random' || currentLevel >= 4) {
+        showHints = !showHints;
+        if (showHints) {
+            animateHintCursors();
+        } else {
+            if (hintAnimationFrame) {
+                cancelAnimationFrame(hintAnimationFrame);
+                hintAnimationFrame = null;
+            }
+            // Redessiner la grille pour effacer les indices
+            drawGrid();
+        }
+    }
+});
+
+document.getElementById('hint-btn').addEventListener('mousedown', function(e) {
+    if (e.target.style.pointerEvents === 'none') return;
+    this.src = 'hint-button-clicked.png';
+});
+
+document.getElementById('hint-btn').addEventListener('mouseout', function() {
+    this.src = 'hint-button.png';
 });
 
 initLevel(currentLevel);
@@ -2138,6 +2947,14 @@ function createRandomLevel() {
 // Création d'un nouveau niveau aléatoire
 function generateNewRandomLevel(config) {
     return new Promise(resolve => {
+        // Réinitialiser l'état des indices
+        if (hintAnimationFrame) {
+            cancelAnimationFrame(hintAnimationFrame);
+            hintAnimationFrame = null;
+        }
+        showHints = false;
+        lastAnimationTime = 0;
+
         const randomLevel = generateRandomLevel(config.clicks, config.tileTypes);
         if (randomLevel) {
             currentLevel = 'random';
@@ -2168,13 +2985,21 @@ function generateNewRandomLevel(config) {
 
 function resetCurrentRandomLevel() {
     return new Promise(resolve => {
+        // Réinitialiser l'état des indices
+        if (hintAnimationFrame) {
+            cancelAnimationFrame(hintAnimationFrame);
+            hintAnimationFrame = null;
+        }
+        showHints = false;
+        lastAnimationTime = 0;
+
         if (storedRandomLevel) {
             tiles = storedRandomLevel.grid.map((state, index) => ({
                 currentState: state,
                 initialState: storedRandomLevel.initialGrid[index],
                 flipCount: 0
             }));
-            remainingMoves = storedRandomLevel.config.clicks; // Utilisez le nouveau paramètre ici
+            remainingMoves = storedRandomLevel.config.clicks;
             history = [];
             drawGrid();
             updateMovesDisplay();
@@ -2185,3 +3010,1020 @@ function resetCurrentRandomLevel() {
         }
     });
 }
+
+
+
+// Système de sauvegarde locale 
+
+// Définir les données à sauvegarder
+const gameProgress = {
+    currentLevel: 0,
+    totalStars: 0,
+    starsPerLevel: {}, // Pour stocker les étoiles gagnées par niveau
+    hasSeenTutorial: {} // Pour suivre les tutoriels déjà vus
+};
+
+// Fonction pour sauvegarder la progression
+function saveProgress() {
+    const progressData = {
+        currentLevel: currentLevel,
+        totalStars: totalStars,
+        starsPerLevel: gameProgress.starsPerLevel,
+        hasSeenTutorial: gameProgress.hasSeenTutorial
+    };
+    localStorage.setItem('untileProgress', JSON.stringify(progressData));
+}
+
+// Fonction pour charger la progression
+function loadProgress() {
+    const savedProgress = localStorage.getItem('untileProgress');
+    if (savedProgress) {
+        const progressData = JSON.parse(savedProgress);
+        currentLevel = progressData.currentLevel;
+        totalStars = progressData.totalStars;
+        gameProgress.starsPerLevel = progressData.starsPerLevel || {};
+        gameProgress.hasSeenTutorial = progressData.hasSeenTutorial || {};
+        return true;
+    }
+    return false;
+}
+
+// Fonction pour mettre à jour les étoiles d'un niveau
+function updateLevelStars(level, stars) {
+    const currentStars = gameProgress.starsPerLevel[level] || 0;
+    if (stars > currentStars) {
+        gameProgress.starsPerLevel[level] = stars;
+        // Le total est recalculé à partir de tous les niveaux
+        totalStars = Object.entries(gameProgress.starsPerLevel)
+            .filter(([level, _]) => !isNaN(parseInt(level))) // Exclure les niveaux random
+            .reduce((sum, [_, stars]) => sum + stars, 0);
+        saveProgress();
+    }
+}
+
+// Ajouter un bouton pour réinitialiser la progression (optionnel)
+function resetProgress() {
+    if (confirm("Are you sure you want to reset your progress? This action is irreversible.")) {
+        localStorage.removeItem('untileProgress');
+        currentLevel = 0;
+        totalStars = 0;
+        gameProgress.starsPerLevel = {};
+        gameProgress.hasSeenTutorial = {};
+        initLevel(currentLevel);
+        updateStarsDisplay();
+        updateInstructionVisibility();
+        updateElementsVisibility();
+    }
+}
+
+// Gestion de la fenêtre de sélection des niveaux
+document.getElementById('levels-button').addEventListener('click', () => {
+    showLevelsModal(false, true);
+});
+
+// Gestionnaire de fermeture de la modale
+document.querySelector('.close-button').addEventListener('click', hideLevelsModal);
+
+// Fermer la modale si on clique en dehors
+window.addEventListener('click', (event) => {
+    const modal = document.getElementById('levels-modal');
+    if (event.target === modal) {
+        hideLevelsModal();
+    }
+});
+
+function showLevelsModal(fromHome = false, fromLevel = false) {
+    openedFromHome = fromHome;
+    openedFromLevel = fromLevel;
+    const modal = document.getElementById('levels-modal');
+    const worldsContainer = document.getElementById('worlds-container');
+    worldsContainer.innerHTML = '';
+	
+	// Ajuster la largeur de la modale selon le device
+    const modalContent = document.querySelector('.modal-content');
+    if (isTouchDevice()) {
+        modalContent.style.width = '80%';
+        modalContent.style.maxWidth = '80%';
+        modalContent.style.maxHeight = '80%';
+    } 
+    
+    const worlds = getWorldInfo();
+    
+    Object.entries(worlds).forEach(([worldNum, world]) => {
+        const worldSection = document.createElement('div');
+        worldSection.className = 'world-section';
+        worldSection.style.marginBottom = '30px';
+        worldSection.style.padding = '20px';
+        const isUnlocked = isWorldUnlocked(parseInt(worldNum));
+        
+        worldSection.style.backgroundColor = isUnlocked ? 'rgba(0, 0, 0, 0.3)' : 'rgba(20, 20, 20, 0.5)';
+        worldSection.style.borderRadius = '8px';
+        worldSection.style.border = isUnlocked ? '1px solid rgba(110, 99, 55, 0.3)' : '1px solid #333';
+        
+        const worldTitle = document.createElement('h3');
+        worldTitle.textContent = isUnlocked ? world.name : `${world.name} 🔒`;
+        worldTitle.style.color = isUnlocked ? '#AAAAAA' : '#666';
+        worldTitle.style.marginBottom = '15px';
+        worldTitle.style.fontSize = '18px';
+		worldTitle.style.textAlign = 'center'; 
+        worldSection.appendChild(worldTitle);
+        
+		if (isUnlocked) {
+			const levelsGrid = document.createElement('div');
+			levelsGrid.style.display = 'grid';
+			// Adapter le nombre de colonnes selon le device
+			levelsGrid.style.gridTemplateColumns = isTouchDevice() ? 
+				'repeat(3, 1fr)' :  // 3 colonnes sur mobile
+				'repeat(5, 1fr)';   // 5 colonnes sur desktop
+			levelsGrid.style.gap = '15px';
+			levelsGrid.style.justifyContent = 'center';
+			levelsGrid.style.maxWidth = '600px';
+			levelsGrid.style.margin = '0 auto';
+            
+            for (let i = world.startLevel; i <= world.endLevel; i++) {
+                const levelButton = createLevelButton(i);
+                levelsGrid.appendChild(levelButton);
+            }
+            worldSection.appendChild(levelsGrid);
+        }
+        
+        worldsContainer.appendChild(worldSection);
+    });
+    
+    modal.style.display = 'block';
+}
+
+// Fonction pour vérifier si un monde est débloqué
+function isWorldUnlocked(worldNum) {
+    if (worldNum === 1) return true; // Premier monde toujours débloqué
+    
+    const worlds = getWorldInfo();
+    const previousWorld = worlds[worldNum - 1];
+    
+    // Vérifier si tous les niveaux du monde précédent ont au moins une étoile
+    for (let level = previousWorld.startLevel; level <= previousWorld.endLevel; level++) {
+        if ((gameProgress.starsPerLevel[level] || 0) === 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Fonction pour vérifier si un niveau est débloqué
+function isLevelUnlocked(levelIndex) {
+    const worlds = getWorldInfo();
+    const worldNum = levels[levelIndex].world;
+    
+    if (!isWorldUnlocked(worldNum)) return false;
+    
+    // Dans un monde débloqué, les niveaux se débloquent séquentiellement
+    if (levelIndex === worlds[worldNum].startLevel) return true;
+    return (gameProgress.starsPerLevel[levelIndex - 1] || 0) > 0;
+}
+
+function createLevelButton(levelIndex) {
+    const button = document.createElement('button');
+    const relativeLevel = getWorldRelativeLevel(levelIndex);
+    const stars = gameProgress.starsPerLevel[levelIndex] || 0;
+    const isCompleted = stars === 3;
+    const isUnlocked = isLevelUnlocked(levelIndex);
+    
+    // Style de base pour un bouton carré
+    button.style.width = '100%';
+    button.style.aspectRatio = '1'; // Force le bouton à être carré
+    button.style.display = 'flex';
+    button.style.flexDirection = 'column';
+    button.style.justifyContent = 'center';
+    button.style.alignItems = 'center';
+    button.style.padding = '5px';
+    button.style.borderRadius = '8px';
+    button.style.transition = 'all 0.2s';
+    
+    if (!isUnlocked) {
+        // Style pour niveau bloqué
+        button.style.backgroundColor = 'rgba(30, 30, 30, 0.5)';
+        button.style.border = '1px solid #333';
+        button.style.color = '#666';
+        button.style.cursor = 'not-allowed';
+        
+        const levelNum = document.createElement('div');
+        levelNum.textContent = relativeLevel;
+        levelNum.style.fontSize = '18px';
+        levelNum.style.marginBottom = '5px';
+		levelNum.style.fontFamily = 'Blouse, sans-serif';
+        
+        const lockIcon = document.createElement('div');
+        lockIcon.textContent = '🔒';
+        lockIcon.style.fontSize = '16px';
+        
+        button.appendChild(levelNum);
+        button.appendChild(lockIcon);
+    } else {
+        // Style pour niveau débloqué
+        button.style.backgroundColor = isCompleted ? 'rgba(34, 139, 34, 0.3)' : 'rgba(60, 45, 30, 0.5)';
+        button.style.border = isCompleted ? '1px solid #4CAF50' : '1px solid #6e6337';
+        button.style.color = '#DDC76E';
+        button.style.cursor = 'pointer';
+        
+        const levelNum = document.createElement('div');
+        levelNum.textContent = relativeLevel;
+        levelNum.style.fontSize = '20px';
+        levelNum.style.marginBottom = '5px';
+		levelNum.style.fontFamily = 'Blouse, sans-serif';
+        button.appendChild(levelNum);
+        
+        const starsDisplay = document.createElement('div');
+        starsDisplay.textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars);
+        starsDisplay.style.fontSize = '14px';
+        button.appendChild(starsDisplay);
+    }
+    
+    if (isUnlocked) {
+        button.addEventListener('mouseenter', () => {
+            button.style.backgroundColor = isCompleted ? 'rgba(34, 139, 34, 0.4)' : 'rgba(80, 60, 40, 0.5)';
+            button.style.transform = 'scale(1.05)';
+        });
+        
+        button.addEventListener('mouseleave', () => {
+            button.style.backgroundColor = isCompleted ? 'rgba(34, 139, 34, 0.3)' : 'rgba(60, 45, 30, 0.5)';
+            button.style.transform = 'scale(1)';
+        });
+        
+        button.addEventListener('click', async () => {
+			currentLevel = levelIndex;
+			await initLevel(currentLevel);
+			hideLevelsModal();
+			if (!openedFromHome) {
+				hideHomeScreen();
+			}
+		});
+    }
+    
+    return button;
+}
+
+function createRandomLevelButton(config, index) {
+    const button = document.createElement('button');
+    button.textContent = config.name;
+    button.style.width = '100%';
+    button.style.padding = '10px';
+    button.style.backgroundColor = 'rgba(60, 45, 30, 0.5)';
+    button.style.border = '1px solid #6e6337';
+    button.style.borderRadius = '5px';
+    button.style.color = '#DDC76E';
+    button.style.cursor = 'pointer';
+    button.style.transition = 'background-color 0.2s';
+    
+    button.addEventListener('mouseenter', () => {
+        button.style.backgroundColor = 'rgba(80, 60, 40, 0.5)';
+    });
+    
+    button.addEventListener('mouseleave', () => {
+        button.style.backgroundColor = 'rgba(60, 45, 30, 0.5)';
+    });
+    
+    button.addEventListener('click', async () => {
+        await initRandomLevel(config);
+        hideLevelsModal();
+    });
+    
+    return button;
+}
+
+function hideLevelsModal() {
+    const modal = document.getElementById('levels-modal');
+    modal.style.display = 'none';
+    
+    if (openedFromHome) {
+        showHomeScreen();
+    } else if (openedFromLevel) {
+        // Ne rien faire, on revient au niveau en cours
+    }
+    
+    openedFromHome = false;
+    openedFromLevel = false;
+}
+
+
+// Initialisation du jeu avec chargement de la progression
+window.onload = async function() {
+    // Essayer de charger la progression sauvegardée
+    if (!loadProgress()) {
+        // Si pas de sauvegarde, initialiser avec les valeurs par défaut
+        currentLevel = 0;
+        totalStars = 0;
+    }
+    
+    await initLevel(currentLevel);
+    updateStarsDisplay();
+    updateInstructionVisibility();
+    updateElementsVisibility();
+    animateRotationSymbol();
+    
+    // Mettre à jour le sélecteur de niveau
+    updateLevelSelector(currentLevel);
+};
+
+
+// Fonctions de gestion de l'écran d'accueil
+function showHomeScreen() {
+    document.getElementById('home-screen').style.display = 'block';
+}
+
+function hideHomeScreen() {
+    document.getElementById('home-screen').style.display = 'none';
+    document.getElementById('hexagon-container').style.display = 'block';
+}
+
+function continueGame() {
+    hideHomeScreen();
+    // Le jeu continue avec le niveau actuel
+}
+
+function startRandomLevel(configIndex) {
+    hideHomeScreen();
+    const config = randomLevelConfigs[configIndex];
+    initRandomLevel(config);
+}
+
+// Détermination du prochain niveau à jouer
+function getNextLevelToPlay() {
+    // Cas où il n'y a pas de sauvegarde
+    if (!loadProgress()) {
+        return {
+            level: 0,
+            type: 'new'
+        };
+    }
+
+    // Chercher d'abord un niveau débloqué sans étoile
+    for (let i = 0; i < levels.length; i++) {
+        if (isLevelUnlocked(i) && !gameProgress.starsPerLevel[i]) {
+            return {
+                level: i,
+                type: 'continue'
+            };
+        }
+    }
+
+    // Sinon, chercher le premier niveau avec moins de 3 étoiles
+    for (let i = 0; i < levels.length; i++) {
+        if ((gameProgress.starsPerLevel[i] || 0) < 3) {
+            return {
+                level: i,
+                type: 'continue'
+            };
+        }
+    }
+
+    // Si tous les niveaux sont complétés avec 3 étoiles
+    return {
+        level: levels.length - 1, // Garder le dernier niveau comme référence
+        type: 'completed'
+    };
+}
+
+// Fonction pour changer le contenu du bouton continue de l'accueil
+function updateContinueButton(nextLevel) {
+    const continueBtn = document.getElementById('continue-btn');
+    const continueText = document.getElementById('continue-text');
+    const currentLevelText = document.getElementById('current-level-text');
+    const levelsButton = document.getElementById('levels-button');
+
+    if (nextLevel.type === 'new') {
+        continueText.textContent = 'Start Game';
+        currentLevelText.textContent = 'Tutorial - Level 1';
+        levelsButton.style.display = 'block'; // Montrer le bouton Levels
+        continueBtn.onclick = () => {
+            hideHomeScreen();
+            initLevel(0);
+        };
+    }
+    else if (nextLevel.type === 'completed') {
+        continueText.textContent = 'All Levels Completed!';
+        currentLevelText.textContent = 'Click to see all levels';
+        levelsButton.style.display = 'none'; // Cacher le bouton Levels car redondant
+        continueBtn.onclick = () => {
+            hideHomeScreen();
+            showLevelsModal();
+        };
+    }
+    else {
+        const worlds = getWorldInfo();
+        const worldNum = levels[nextLevel.level].world;
+        const worldName = worlds[worldNum].name;
+        const relativeLevel = getWorldRelativeLevel(nextLevel.level);
+        
+        continueText.textContent = 'Continue';
+        currentLevelText.textContent = `${worldName} - Level ${relativeLevel}`;
+        levelsButton.style.display = 'block'; // Montrer le bouton Levels
+        continueBtn.onclick = () => {
+            hideHomeScreen();
+            currentLevel = nextLevel.level;
+            initLevel(currentLevel);
+        };
+    }
+}
+
+// Fonction pour créer et gérer le bouton continue hexagonal
+function createContinueHexButton() {
+    const hexButton = document.createElement('div');
+    hexButton.id = 'continue-hex-button';
+    hexButton.style.cssText = `
+        position: relative;
+        width: 200px;
+        height: 230px;
+        cursor: pointer;
+    `;
+
+    // Créer le canvas pour l'hexagone
+    const canvas = document.createElement('canvas');
+    canvas.width = 200;
+    canvas.height = 230;
+    canvas.style.position = 'absolute';
+    canvas.style.top = '0';
+    canvas.style.left = '0';
+
+    // Conteneur pour le texte
+    const textContainer = document.createElement('div');
+    textContainer.style.cssText = `
+        position: absolute;
+        width: 100%;
+        text-align: center;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1;
+        pointer-events: none;
+    `;
+
+    // Éléments de texte
+    const continueText = document.createElement('div');
+    continueText.id = 'continue-text';
+    continueText.style.cssText = `
+        color: #FFFFFF;
+        font-size: 18px;
+		margin-top: 15px;
+    `;
+
+    const levelText = document.createElement('div');
+    levelText.id = 'current-level-text';
+    levelText.style.cssText = `
+        color: #FFFFFF;
+        font-size: 10px;
+        opacity: 0.8;
+		
+    `;
+
+    textContainer.appendChild(continueText);
+    textContainer.appendChild(levelText);
+    hexButton.appendChild(canvas);
+    hexButton.appendChild(textContainer);
+
+    let hoverOpacity = 0;
+    let isHovered = false;
+    let animationFrame = null;
+
+    function drawHexagon(ctx, opacity = 1) {
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const size = 90;
+
+        // Effacer le canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Dessiner l'hexagone
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = (Math.PI / 3) * i;
+            const x = centerX + size * Math.cos(angle);
+            const y = centerY + size * Math.sin(angle);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+
+        // Créer le dégradé
+        const gradient = ctx.createLinearGradient(
+            centerX - size,
+            centerY - size,
+            centerX + size,
+            centerY + size
+        );
+        gradient.addColorStop(0, `rgba(18, 216, 238, ${opacity})`);
+        gradient.addColorStop(1, `rgba(221, 252, 160, ${opacity})`);
+
+        // Remplir avec le dégradé
+        ctx.fillStyle = gradient;
+        ctx.fill();
+
+        // Dessiner le contour
+        ctx.strokeStyle = 'cyan';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Ajouter une lueur si survolé
+        if (isHovered) {
+            ctx.shadowColor = 'cyan';
+            ctx.shadowBlur = 20;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    function updateAnimation() {
+        const ctx = canvas.getContext('2d');
+        
+        if (isHovered && hoverOpacity < 1) {
+            hoverOpacity += 0.05;
+        } else if (!isHovered && hoverOpacity > 0) {
+            hoverOpacity -= 0.05;
+        }
+
+        drawHexagon(ctx, 0.8 + (hoverOpacity * 0.2));
+
+        if (hoverOpacity > 0 && hoverOpacity < 1) {
+            animationFrame = requestAnimationFrame(updateAnimation);
+        } else {
+            cancelAnimationFrame(animationFrame);
+            animationFrame = null;
+        }
+    }
+
+    // Gestionnaires d'événements pour les effets de survol
+    hexButton.addEventListener('mouseenter', () => {
+        isHovered = true;
+        if (!animationFrame) {
+            updateAnimation();
+        }
+    });
+
+    hexButton.addEventListener('mouseleave', () => {
+        isHovered = false;
+        if (!animationFrame) {
+            updateAnimation();
+        }
+    });
+
+    // Dessiner l'état initial
+    const ctx = canvas.getContext('2d');
+    drawHexagon(ctx, 0.8);
+
+    return hexButton;
+}
+
+// Fonction pour mettre à jour le bouton continue avec le style hexagonal
+function updateContinueHexButton(nextLevel) {
+    const continueBtn = document.getElementById('continue-hex-button');
+    const continueText = document.getElementById('continue-text');
+    const currentLevelText = document.getElementById('current-level-text');
+    const levelsHexButton = document.getElementById('levels-hex-button');
+
+    if (nextLevel.type === 'new') {
+        continueText.textContent = 'Start Game';
+        currentLevelText.innerHTML = 'Tutorial<br>Level 1';
+        if (levelsHexButton) levelsHexButton.style.display = 'block';
+        continueBtn.onclick = () => {
+            hideHomeScreen();
+            initLevel(0);
+        };
+    }
+    else if (nextLevel.type === 'completed') {
+        continueText.textContent = 'All Levels Completed!';
+        currentLevelText.textContent = 'Click to see the list';
+        if (levelsHexButton) levelsHexButton.style.display = 'none';
+        continueBtn.onclick = () => {
+            hideHomeScreen();
+            showLevelsModal(true);
+        };
+    }
+    else {
+        const worlds = getWorldInfo();
+        const worldNum = levels[nextLevel.level].world;
+        const worldName = worlds[worldNum].name;
+        const relativeLevel = getWorldRelativeLevel(nextLevel.level);
+        
+        continueText.textContent = 'Continue';
+        currentLevelText.innerHTML = `${worldName}<br>Level ${relativeLevel}`;
+        if (levelsHexButton) levelsHexButton.style.display = 'block';
+        continueBtn.onclick = () => {
+            hideHomeScreen();
+            currentLevel = nextLevel.level;
+            initLevel(currentLevel);
+        };
+    }
+}
+
+// Fonction d'initialisation pour remplacer le bouton existant
+function initializeHexagonalContinueButton() {
+    // Récupérer le conteneur du bouton continue existant
+    const oldContinueBtn = document.getElementById('continue-btn');
+    // Créer le nouveau bouton hexagonal
+    const hexButton = createContinueHexButton();
+    // Remplacer l'ancien bouton par le nouveau
+    oldContinueBtn.parentNode.replaceChild(hexButton, oldContinueBtn);
+}
+
+// Fonction pour créer le bouton Levels hexagonal
+function createLevelsHexButton() {
+    const hexButton = document.createElement('div');
+    hexButton.id = 'levels-hex-button';
+    hexButton.style.cssText = `
+        position: relative;
+        width: 100px;
+        height: 115px;
+        cursor: pointer;
+		margin-top: -30px;
+    `;
+
+    // Créer le canvas pour l'hexagone
+    const canvas = document.createElement('canvas');
+    canvas.width = 100;
+    canvas.height = 115;
+    canvas.style.position = 'absolute';
+    canvas.style.top = '0';
+    canvas.style.left = '0';
+
+    // Conteneur pour le texte
+    const textContainer = document.createElement('div');
+    textContainer.style.cssText = `
+        position: absolute;
+        width: 100%;
+        text-align: center;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1;
+        pointer-events: none;
+    `;
+
+    // Texte du bouton
+    const levelsText = document.createElement('div');
+    levelsText.textContent = 'Levels';
+    levelsText.style.cssText = `
+        color: #FFFFFF;
+        font-size: 14px;
+    `;
+
+    textContainer.appendChild(levelsText);
+    hexButton.appendChild(canvas);
+    hexButton.appendChild(textContainer);
+
+    let hoverOpacity = 0;
+    let isHovered = false;
+    let animationFrame = null;
+
+    function drawHexagon(ctx, opacity = 1) {
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const size = 45;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = (Math.PI / 3) * i;
+            const x = centerX + size * Math.cos(angle);
+            const y = centerY + size * Math.sin(angle);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+
+        // Utiliser un dégradé différent pour distinguer du bouton continue
+        const gradient = ctx.createLinearGradient(
+            centerX - size,
+            centerY - size,
+            centerX + size,
+            centerY + size
+        );
+        gradient.addColorStop(0, `rgba(221, 252, 160, ${opacity})`);
+        gradient.addColorStop(1, `rgba(18, 216, 238, ${opacity})`);
+
+        ctx.fillStyle = gradient;
+        ctx.fill();
+
+        ctx.strokeStyle = 'cyan';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        if (isHovered) {
+            ctx.shadowColor = 'cyan';
+            ctx.shadowBlur = 20;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    function updateAnimation() {
+        const ctx = canvas.getContext('2d');
+        
+        if (isHovered && hoverOpacity < 1) {
+            hoverOpacity += 0.05;
+        } else if (!isHovered && hoverOpacity > 0) {
+            hoverOpacity -= 0.05;
+        }
+
+        drawHexagon(ctx, 0.8 + (hoverOpacity * 0.2));
+
+        if (hoverOpacity > 0 && hoverOpacity < 1) {
+            animationFrame = requestAnimationFrame(updateAnimation);
+        } else {
+            cancelAnimationFrame(animationFrame);
+            animationFrame = null;
+        }
+    }
+
+    // Gestionnaires d'événements
+    hexButton.addEventListener('mouseenter', () => {
+        isHovered = true;
+        if (!animationFrame) {
+            updateAnimation();
+        }
+    });
+
+    hexButton.addEventListener('mouseleave', () => {
+        isHovered = false;
+        if (!animationFrame) {
+            updateAnimation();
+        }
+    });
+
+	hexButton.addEventListener('click', () => {
+		hideHomeScreen();
+		showLevelsModal(true);
+	});
+
+    // Dessiner l'état initial
+    const ctx = canvas.getContext('2d');
+    drawHexagon(ctx, 0.8);
+
+    return hexButton;
+}
+
+// Fonction pour initialiser le bouton Levels hexagonal
+function initializeLevelsHexButton() {
+    const oldLevelsBtn = document.getElementById('levels-button');
+    const hexButton = createLevelsHexButton();
+    oldLevelsBtn.parentNode.replaceChild(hexButton, oldLevelsBtn);
+}
+
+// Fonction pour créer un bouton random hexagonal
+function createRandomHexButton(config) {
+    const hexButton = document.createElement('div');
+    hexButton.style.cssText = `
+        position: relative;
+        width: 100px;
+        height: 115px;
+        cursor: pointer;
+        margin-top: -30px;
+    `;
+
+    // Créer le canvas pour l'hexagone
+    const canvas = document.createElement('canvas');
+    canvas.width = 100;
+    canvas.height = 115;
+    canvas.style.position = 'absolute';
+    canvas.style.top = '0';
+    canvas.style.left = '0';
+
+    // Conteneur pour le texte
+    const textContainer = document.createElement('div');
+    textContainer.style.cssText = `
+        position: absolute;
+        width: 90%;
+        text-align: center;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1;
+        pointer-events: none;
+    `;
+
+    // Définir les couleurs de texte selon la difficulté
+    const textColors = {
+        'easy': '#81edbf',    // Vert clair
+        'medium': '#e8fda0',  // Jaune
+        'hard': '#c91f8b'     // Rose/violet
+    };
+
+    // Texte du bouton
+    const buttonText = document.createElement('div');
+    buttonText.textContent = config.name;
+    buttonText.style.cssText = `
+        color: ${textColors[config.difficulty]};
+        font-size: 13px;
+		margin-top : 10px;
+    `;
+
+    textContainer.appendChild(buttonText);
+    hexButton.appendChild(canvas);
+    hexButton.appendChild(textContainer);
+
+    let hoverOpacity = 0;
+    let isHovered = false;
+    let animationFrame = null;
+
+    const colors = {
+        'easy': ['#330d69', '#30c9cd'],
+        'medium': ['#330d69', '#30c9cd'],
+        'hard': ['#330d69', '#30c9cd']
+    };
+
+    function drawHexagon(ctx, opacity = 1) {
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const size = 45;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = (Math.PI / 3) * i;
+            const x = centerX + size * Math.cos(angle);
+            const y = centerY + size * Math.sin(angle);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+
+        const gradient = ctx.createLinearGradient(
+            centerX - size,
+            centerY - size,
+            centerX + size,
+            centerY + size
+        );
+        gradient.addColorStop(0, `${colors[config.difficulty][0]}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`);
+        gradient.addColorStop(1, `${colors[config.difficulty][1]}${Math.round(opacity * 255).toString(16, '0')}`);
+
+        ctx.fillStyle = gradient;
+        ctx.fill();
+
+        ctx.strokeStyle = 'cyan';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        if (isHovered) {
+            ctx.shadowColor = 'cyan';
+            ctx.shadowBlur = 20;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    function updateAnimation() {
+        const ctx = canvas.getContext('2d');
+        
+        if (isHovered && hoverOpacity < 1) {
+            hoverOpacity += 0.05;
+        } else if (!isHovered && hoverOpacity > 0) {
+            hoverOpacity -= 0.05;
+        }
+
+        drawHexagon(ctx, 0.8 + (hoverOpacity * 0.2));
+
+        if (hoverOpacity > 0 && hoverOpacity < 1) {
+            animationFrame = requestAnimationFrame(updateAnimation);
+        } else {
+            cancelAnimationFrame(animationFrame);
+            animationFrame = null;
+        }
+    }
+
+    hexButton.addEventListener('mouseenter', () => {
+        isHovered = true;
+        if (!animationFrame) {
+            updateAnimation();
+        }
+    });
+
+    hexButton.addEventListener('mouseleave', () => {
+        isHovered = false;
+        if (!animationFrame) {
+            updateAnimation();
+        }
+    });
+
+    hexButton.addEventListener('click', async () => {
+        hideHomeScreen();
+        await initRandomLevel(config);
+    });
+
+    const ctx = canvas.getContext('2d');
+    drawHexagon(ctx, 0.8);
+
+    return hexButton;
+}
+
+// Puis modifier la section de création des boutons random dans la home :
+const randomLevelsContainer = document.querySelector('.random-levels');
+if (randomLevelsContainer) {
+    randomLevelsContainer.style.display = 'flex';
+    randomLevelsContainer.style.gap = '10px';
+    randomLevelsContainer.style.justifyContent = 'center';
+    
+    // Supprimer les anciens boutons
+    randomLevelsContainer.innerHTML = '';
+    
+    // Ajouter les nouveaux boutons hexagonaux
+    randomLevelConfigs.forEach(config => {
+        const hexButton = createRandomHexButton(config);
+        randomLevelsContainer.appendChild(hexButton);
+    });
+}
+
+
+// Bouton reset progress
+const resetProgressBtn = document.getElementById('reset-progress-btn');
+
+resetProgressBtn.addEventListener('mouseenter', () => {
+    resetProgressBtn.style.color = 'rgba(221, 199, 110, 0.8)';
+    resetProgressBtn.style.borderColor = 'rgba(110, 99, 55, 0.6)';
+});
+
+resetProgressBtn.addEventListener('mouseleave', () => {
+    resetProgressBtn.style.color = 'rgba(221, 199, 110, 0.5)';
+    resetProgressBtn.style.borderColor = 'rgba(110, 99, 55, 0.3)';
+});
+
+resetProgressBtn.addEventListener('click', resetProgress);
+
+
+// Pour gérer le clic sur l'indicateur d'étoiles qui renvoie vers la fenêtre des niveaux
+const starsDisplay = document.getElementById('stars-display');
+
+starsDisplay.addEventListener('click', () => {
+    // Si on est dans l'écran d'accueil
+    if (document.getElementById('home-screen').style.display === 'block') {
+        showLevelsModal(true, false);
+    } else {
+        // Si on est dans un niveau
+        showLevelsModal(false, true);
+    }
+});
+
+starsDisplay.addEventListener('mouseenter', () => {
+    starsDisplay.style.backgroundColor = 'rgba(60, 45, 30, 0.7)';
+    starsDisplay.style.borderColor = '#DDC76E';
+});
+
+starsDisplay.addEventListener('mouseleave', () => {
+    starsDisplay.style.backgroundColor = 'rgba(40, 30, 20, 0.5)';
+    starsDisplay.style.borderColor = '#6e6337';
+});
+
+
+// Window.onload pour ajouter les écouteurs d'événements
+const originalOnload = window.onload;
+window.onload = async function() {
+    // Charger la progression sauvegardée
+    if (!loadProgress()) {
+        currentLevel = 0;
+        totalStars = 0;
+    }
+
+    // Ajouter les écouteurs d'événements pour l'écran d'accueil
+    document.getElementById('home-button').addEventListener('click', showHomeScreen);
+    document.getElementById('home-close-btn').addEventListener('click', hideHomeScreen);
+    
+    // Écouteurs pour les boutons de niveau aléatoire
+    document.querySelectorAll('.random-level-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            startRandomLevel(parseInt(btn.dataset.difficulty));
+        });
+    });
+    
+    // Ajuster la position du bouton Levels
+    document.getElementById('levels-button').style.left = '80px';
+
+    // Initialiser les boutons hexagonaux
+    initializeHexagonalContinueButton();
+    initializeLevelsHexButton();
+
+    // Déterminer le prochain niveau à jouer
+    const nextLevel = getNextLevelToPlay();
+    
+    // Mettre à jour le bouton continue hexagonal
+    updateContinueHexButton(nextLevel);
+
+    // Si c'est un nouveau jeu, commencer au niveau 0
+    // Si le jeu est complété ou une sauvegarde existe, montrer l'écran d'accueil
+    if (nextLevel.type === 'completed') {
+        currentLevel = nextLevel.level;
+        await initLevel(currentLevel);
+        showHomeScreen();
+    } else if (nextLevel.type === 'new') {
+        await initLevel(0);
+    } else {
+        currentLevel = nextLevel.level;
+        await initLevel(currentLevel);
+        showHomeScreen();
+    }
+
+    // Mettre à jour les affichages
+    updateStarsDisplay();
+    updateInstructionVisibility();
+    updateElementsVisibility();
+    animateRotationSymbol();
+    updateLevelSelector(currentLevel);
+};
