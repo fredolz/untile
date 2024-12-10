@@ -49,6 +49,19 @@ const BLINK_DURATION = 1000; // Durée complète d'un cycle en millisecondes
 const MIN_OPACITY = 0.1;
 const MAX_OPACITY = 0.4;
 
+// Ajout de nouvelles constantes pour les indices
+const NORMAL_BLINK_DURATION = 1000;  // Durée normale du clignotement
+const ERROR_BLINK_DURATION = 500;    // Durée accélérée du clignotement après erreur
+const ERROR_MIN_OPACITY = 0.3;       // Opacité minimale en cas d'erreur
+const ERROR_MAX_OPACITY = 0.9;       // Opacité maximale en cas d'erreur
+let isErrorBlinking = false;         // État du clignotement d'erreur
+let errorBlinkTimeout = null;        // Timer pour arrêter le clignotement d'erreur
+
+// Constantes pour gérer le clignotement des boutons reset et compteurs de coups
+let isBlinkingReset = false;
+let blinkAnimationFrame = null;
+let blinkOpacity = 1;
+
 // Paramètres pour la génération de niveaux aléatoires
 const randomLevelConfigs = [
   { name: "Random Easy", clicks: 4, tileTypes: [0], difficulty: 'easy' },
@@ -147,6 +160,11 @@ const levels = [
   { grid: [7,2,2,1,0,7,0,0,0,7,0,0,1,1,0,0,1,0,0], optimalMoves: 10, difficulty: 'hard', world: 8}, //lvl 80
   
 ];
+
+// Variables de gestion des indices
+let currentHintIndex = 0;  // Pour suivre combien d'indices sont actuellement affichés
+let maxHintsForLevel = 0;  // Pour stocker le nombre maximum d'indices pour le niveau en cours
+let isHintButtonActive = true; // Variable pour suivre l'état du bouton
 
 // Définition des indices par niveau
 const hintPositions = {
@@ -280,15 +298,21 @@ function drawHintCursor(ctx, x, y, size, opacity = 1) {
   ctx.lineTo(x, y + cursorSize/2 - yOffset);
   ctx.closePath();
   
-  // Créer un dégradé pour le curseur
+  // Créer un dégradé pour le curseur avec des couleurs différentes selon l'état d'erreur
   const gradient = ctx.createLinearGradient(
     x - cursorSize/2, 
     y - cursorSize/2 - yOffset, 
     x + cursorSize/2, 
     y + cursorSize/2 - yOffset
   );
-  gradient.addColorStop(0, '#ffffff');
-  gradient.addColorStop(1, '#ffff00');
+  
+  if (isErrorBlinking) {
+    gradient.addColorStop(0, '#aaffaa');
+    gradient.addColorStop(1, '#00ff00'); // Vert 
+  } else {
+    gradient.addColorStop(0, '#ffffff');
+    gradient.addColorStop(1, '#ffff00'); // Jaune par défaut
+  }
   
   ctx.fillStyle = gradient;
   ctx.fill();
@@ -300,7 +324,7 @@ function drawHintCursor(ctx, x, y, size, opacity = 1) {
   ctx.restore();
 }
 
-// Modification de la fonction animateHintCursors pour gérer les niveaux aléatoires
+// Animations des curseurs indices
 function animateHintCursors(timestamp) {
     // Si nous sommes dans un niveau aléatoire
     if (currentLevel === 'random' && storedRandomLevel) {
@@ -314,6 +338,7 @@ function animateHintCursors(timestamp) {
 
         // Utiliser la séquence de clics comme positions d'indices
         const hintClickSequence = storedRandomLevel.clickSequence;
+        const hintsToShow = hintClickSequence.slice(0, currentHintIndex + 1);
 
         // Initialiser le temps si c'est le premier appel
         if (!lastAnimationTime) {
@@ -324,36 +349,31 @@ function animateHintCursors(timestamp) {
         const elapsedTime = timestamp - lastAnimationTime;
         const normalizedTime = (elapsedTime % BLINK_DURATION) / BLINK_DURATION;
         
-        // Calculer l'opacité avec une fonction sinusoïdale
         hintOpacity = MIN_OPACITY + (MAX_OPACITY - MIN_OPACITY) * 
                      (0.5 + 0.5 * Math.sin(2 * Math.PI * normalizedTime));
 
         // Mettre à jour chaque curseur d'indice
-        hintClickSequence.forEach(position => {
+        hintsToShow.forEach(position => {
             const hexagon = hexagonContainer.querySelector(`.hexagon[data-index="${position}"]`);
             if (hexagon) {
                 const front = hexagon.children[0];
                 const frontCtx = front.getContext('2d');
                 
-                // Redessiner l'hexagone
                 frontCtx.clearRect(0, 0, front.width, front.height);
                 drawHexagon(frontCtx, front.width/2, front.height/2, front.width/2, tiles[position].currentState);
                 
-                // Si c'est une tuile de type 7, redessiner le symbole de rotation
                 if (tiles[position].currentState === 7) {
                     drawRotationSymbol(frontCtx, front.width/2, front.height/2, front.width/2);
                 }
                 
-                // Dessiner le curseur avec l'opacité actuelle
                 drawHintCursor(frontCtx, front.width/2, front.height/2, front.width/2, hintOpacity);
             }
         });
 
         hintAnimationFrame = requestAnimationFrame(animateHintCursors);
     } 
-    // Pour les niveaux normaux, garder le comportement existant
+    // Pour les niveaux normaux
     else {
-        // Si nous ne sommes pas dans un niveau avec des indices, ne rien faire
         if (!hintPositions[currentLevel]) {
             if (hintAnimationFrame) {
                 cancelAnimationFrame(hintAnimationFrame);
@@ -362,43 +382,83 @@ function animateHintCursors(timestamp) {
             return;
         }
 
-        // Si nous sommes au niveau 6 ou plus et que showHints est false, ne pas afficher les indices
-        if (currentLevel >= 5 && !showHints) {
-            if (hintAnimationFrame) {
-                cancelAnimationFrame(hintAnimationFrame);
-                hintAnimationFrame = null;
+        // Pour les niveaux tutoriels (0-4), garder l'ancien comportement
+        if (currentLevel < 5) {
+            const allHintPositions = hintPositions[currentLevel];
+            // Logique existante pour les niveaux tutoriels...
+            if (!lastAnimationTime) {
+                lastAnimationTime = timestamp;
             }
-            return;
-        }
 
-        // Initialiser le temps si c'est le premier appel
-        if (!lastAnimationTime) {
-            lastAnimationTime = timestamp;
-        }
+            const elapsedTime = timestamp - lastAnimationTime;
+            const currentBlinkDuration = isErrorBlinking ? ERROR_BLINK_DURATION : NORMAL_BLINK_DURATION;
+            const normalizedTime = (elapsedTime % currentBlinkDuration) / currentBlinkDuration;
+            
+            const minOpacity = isErrorBlinking ? ERROR_MIN_OPACITY : MIN_OPACITY;
+            const maxOpacity = isErrorBlinking ? ERROR_MAX_OPACITY : MAX_OPACITY;
+            
+            hintOpacity = minOpacity + (maxOpacity - minOpacity) * 
+                         (0.5 + 0.5 * Math.sin(2 * Math.PI * normalizedTime));
 
-        // Le reste du code existant pour les niveaux normaux...
-        const elapsedTime = timestamp - lastAnimationTime;
-        const normalizedTime = (elapsedTime % BLINK_DURATION) / BLINK_DURATION;
-        
-        hintOpacity = MIN_OPACITY + (MAX_OPACITY - MIN_OPACITY) * 
-                     (0.5 + 0.5 * Math.sin(2 * Math.PI * normalizedTime));
-
-        hintPositions[currentLevel].forEach(position => {
-            const hexagon = hexagonContainer.querySelector(`.hexagon[data-index="${position}"]`);
-            if (hexagon) {
-                const front = hexagon.children[0];
-                const frontCtx = front.getContext('2d');
-                
-                frontCtx.clearRect(0, 0, front.width, front.height);
-                drawHexagon(frontCtx, front.width/2, front.height/2, front.width/2, tiles[position].currentState);
-                
-                if (tiles[position].currentState === 7) {
-                    drawRotationSymbol(frontCtx, front.width/2, front.height/2, front.width/2);
+            allHintPositions.forEach(position => {
+                const hexagon = hexagonContainer.querySelector(`.hexagon[data-index="${position}"]`);
+                if (hexagon) {
+                    const front = hexagon.children[0];
+                    const frontCtx = front.getContext('2d');
+                    
+                    frontCtx.clearRect(0, 0, front.width, front.height);
+                    drawHexagon(frontCtx, front.width/2, front.height/2, front.width/2, tiles[position].currentState);
+                    
+                    if (tiles[position].currentState === 7) {
+                        drawRotationSymbol(frontCtx, front.width/2, front.height/2, front.width/2);
+                    }
+                    
+                    drawHintCursor(frontCtx, front.width/2, front.height/2, front.width/2, hintOpacity);
                 }
-                
-                drawHintCursor(frontCtx, front.width/2, front.height/2, front.width/2, hintOpacity);
+            });
+        } else {
+            // Nouveau comportement pour les niveaux normaux
+            if (!showHints) {
+                if (hintAnimationFrame) {
+                    cancelAnimationFrame(hintAnimationFrame);
+                    hintAnimationFrame = null;
+                }
+                return;
             }
-        });
+
+            const hintsToShow = hintPositions[currentLevel].slice(0, currentHintIndex + 1);
+
+            if (!lastAnimationTime) {
+                lastAnimationTime = timestamp;
+            }
+
+            const elapsedTime = timestamp - lastAnimationTime;
+            const currentBlinkDuration = isErrorBlinking ? ERROR_BLINK_DURATION : NORMAL_BLINK_DURATION;
+            const normalizedTime = (elapsedTime % currentBlinkDuration) / currentBlinkDuration;
+            
+            const minOpacity = isErrorBlinking ? ERROR_MIN_OPACITY : MIN_OPACITY;
+            const maxOpacity = isErrorBlinking ? ERROR_MAX_OPACITY : MAX_OPACITY;
+            
+            hintOpacity = minOpacity + (maxOpacity - minOpacity) * 
+                         (0.5 + 0.5 * Math.sin(2 * Math.PI * normalizedTime));
+
+            hintsToShow.forEach(position => {
+                const hexagon = hexagonContainer.querySelector(`.hexagon[data-index="${position}"]`);
+                if (hexagon) {
+                    const front = hexagon.children[0];
+                    const frontCtx = front.getContext('2d');
+                    
+                    frontCtx.clearRect(0, 0, front.width, front.height);
+                    drawHexagon(frontCtx, front.width/2, front.height/2, front.width/2, tiles[position].currentState);
+                    
+                    if (tiles[position].currentState === 7) {
+                        drawRotationSymbol(frontCtx, front.width/2, front.height/2, front.width/2);
+                    }
+                    
+                    drawHintCursor(frontCtx, front.width/2, front.height/2, front.width/2, hintOpacity);
+                }
+            });
+        }
 
         hintAnimationFrame = requestAnimationFrame(animateHintCursors);
     }
@@ -407,23 +467,39 @@ function animateHintCursors(timestamp) {
 // Modifier la fonction initLevel pour démarrer/arrêter l'animation des indices
 const originalInitLevel = window.initLevel;
 window.initLevel = function(level) {
-    // Réinitialiser l'animation et l'état des indices
+    // Réinitialiser le bouton hint
+    const hintButton = document.getElementById('hint-btn');
+    isHintButtonActive = true;
+    hintButton.style.opacity = '1';
+    hintButton.style.cursor = 'pointer';
+    
+    // Réinitialiser les variables d'indices
     if (hintAnimationFrame) {
         cancelAnimationFrame(hintAnimationFrame);
         hintAnimationFrame = null;
     }
     lastAnimationTime = 0;
-    showHints = false; // Toujours réinitialiser les indices à false pour le nouveau niveau
+    showHints = false;
+    currentHintIndex = 0;
+    
+    // Mettre à jour le nombre maximum d'indices pour le niveau
+    if (level === 'random') {
+        maxHintsForLevel = storedRandomLevel ? storedRandomLevel.clickSequence.length : 0;
+    } else if (hintPositions[level]) {
+        maxHintsForLevel = hintPositions[level].length;
+    } else {
+        maxHintsForLevel = 0;
+    }
 
     return originalInitLevel(level).then(() => {
-        drawGrid(); // S'assurer que la grille est redessinée sans indices
+        drawGrid();
         
-        // Démarrer l'animation des indices uniquement si nécessaire
         if (level === 'random') {
             // Ne rien faire ici, on attend que l'utilisateur active les indices
         } else if (hintPositions[level] && level < 5) {
             // Activer automatiquement les indices uniquement pour les premiers niveaux
             showHints = true;
+            currentHintIndex = maxHintsForLevel - 1; // Afficher tous les indices pour les niveaux tutoriels
             animateHintCursors();
         }
     });
@@ -529,6 +605,42 @@ function stopHoverPreview() {
     }
     
     hoveredTileIndex = null;
+}
+
+// Fonction pour gérer le clignotement du bouton reset et du compteur de coups
+
+function animateResetHint() {
+    if (!isBlinkingReset) return;
+    
+    const resetBtn = document.getElementById('reset-btn');
+    const movesDisplay = document.getElementById('moves-display');
+    
+    blinkOpacity = 0.5 + (Math.sin(Date.now() / 150) + 1) / 2 * 0.7;
+    
+    resetBtn.style.opacity = blinkOpacity;
+    movesDisplay.style.opacity = blinkOpacity;
+    
+    blinkAnimationFrame = requestAnimationFrame(animateResetHint);
+}
+
+function startResetHint() {
+    if (!isBlinkingReset) {
+        isBlinkingReset = true;
+        animateResetHint();
+    }
+}
+
+function stopResetHint() {
+    isBlinkingReset = false;
+    if (blinkAnimationFrame) {
+        cancelAnimationFrame(blinkAnimationFrame);
+        blinkAnimationFrame = null;
+    }
+    
+    const resetBtn = document.getElementById('reset-btn');
+    const movesDisplay = document.getElementById('moves-display');
+    resetBtn.style.opacity = '1';
+    movesDisplay.style.opacity = '1';
 }
 
 
@@ -696,12 +808,17 @@ const largeHexPositions = [
   {x: 0, y: 2}          // 18: Centre-bas
 ];
 
+// Gestion du tuto du tout premier niveau dont l'instruction et la main animée
 function updateInstructionVisibility() {
     const instructionElement = document.getElementById('instruction');
+    let cursorElement = document.getElementById('tutorial-cursor');
+    let animationFrameId = null;
+    
     if (currentLevel === 0) {
         const hexagonContainer = document.getElementById('hexagon-container');
         const hexagonRect = hexagonContainer.getBoundingClientRect();
-        
+
+        // Instructions avec animation de clignotement
         instructionElement.style.display = 'block';
         instructionElement.style.position = 'absolute';
         instructionElement.style.width = '100%';
@@ -709,22 +826,100 @@ function updateInstructionVisibility() {
         instructionElement.style.top = `${hexagonRect.bottom - 500}px`;
         instructionElement.style.left = '0';
         instructionElement.style.color = 'lightyellow';
-		instructionElement.style.fontStyle = 'italic'; 
-        instructionElement.style.fontSize = '13px';
+        instructionElement.style.fontStyle = 'italic';
+        instructionElement.style.fontSize = '14px';
         instructionElement.style.zIndex = '1000';
         instructionElement.innerHTML = '<b>Click</b> on the right blank tiles <br>to <b>flip</b> the others and <b>clear</b> the board!';
+
+        // Position centrale de la grille
+        const centerX = (hexagonRect.left + hexagonRect.width / 2) + 10;
+        const centerY = (hexagonRect.top + hexagonRect.height / 2) - 25;
         
-        // Animation de clignotement
-        let opacity = 1;
-        const animate = () => {
-            opacity = Math.sin(Date.now() / 500) * 0.3 + 0.7;
-            instructionElement.style.opacity = opacity;
-            if (currentLevel === 0) {
-                requestAnimationFrame(animate);
+        // Position de départ (en bas à droite)
+        const startX = hexagonRect.right - 460;
+        const startY = hexagonRect.bottom - 280;
+
+        // Créer et positionner le curseur
+        if (!cursorElement) {
+            cursorElement = document.createElement('img');
+            cursorElement.id = 'tutorial-cursor';
+            cursorElement.src = 'hand.png';
+            cursorElement.style.cssText = `
+                position: fixed;
+                z-index: 10000;
+                pointer-events: none;
+                width: 32px;
+                height: 32px;
+                opacity: 0;
+            `;
+            document.body.appendChild(cursorElement);
+            
+            // Position initiale
+            cursorElement.style.left = `${startX}px`;
+            cursorElement.style.top = `${startY}px`;
+        }
+
+        let startTime = null;
+        const animationDuration = 1000;
+        const waitDuration = 500;
+        const totalDuration = animationDuration + waitDuration;
+
+        function animate(timestamp) {
+            if (currentLevel !== 0) {
+                if (cursorElement) cursorElement.remove();
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                return;
             }
-        };
-        animate();
+
+            if (!startTime) startTime = timestamp;
+            const elapsed = timestamp - startTime;
+            const cycle = Math.floor(elapsed / totalDuration);
+            const cycleTime = elapsed % totalDuration;
+            
+            // Animation du texte d'instruction
+            instructionElement.style.opacity = Math.sin(elapsed / 500) * 0.3 + 0.7;
+
+            if (cycleTime <= animationDuration) {
+                const progress = cycleTime / animationDuration;
+                const easeProgress = progress < 0.5 
+                    ? 2 * progress * progress 
+                    : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+                const currentX = startX + (centerX - startX) * easeProgress;
+                const currentY = startY + (centerY - startY) * easeProgress;
+                
+                cursorElement.style.left = `${currentX - 16}px`;
+                cursorElement.style.top = `${currentY - 16}px`;
+                
+                // Gestion de l'opacité
+                let opacity = 1;
+                if (cycleTime < 200) {
+                    opacity = cycleTime / 200;
+                } else if (cycleTime > animationDuration - 200) {
+                    opacity = (animationDuration - cycleTime) / 200;
+                }
+                cursorElement.style.opacity = opacity;
+            } else {
+                // Pendant la période d'attente
+                cursorElement.style.opacity = 0;
+                cursorElement.style.left = `${startX - 16}px`;
+                cursorElement.style.top = `${startY - 16}px`;
+            }
+
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        // Démarrer l'animation
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+        animationFrameId = requestAnimationFrame(animate);
+
     } else {
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+        }
+        if (cursorElement) {
+            cursorElement.remove();
+        }
         instructionElement.style.display = 'none';
     }
 }
@@ -1106,7 +1301,9 @@ function showTutorialImage(imageName) {
 
 function initLevel(level) {
     return new Promise(async (resolve) => {
-        isLevelTransition = false;
+		stopResetHint(); // Arrêter l'animation
+        hasFirstClick = false;
+		isLevelTransition = false;
         isTransitioning = false;
         updateLevelSelector(level);
         
@@ -1144,6 +1341,10 @@ function initLevel(level) {
         updateElementsVisibility();
 		setButtonsEnabled(true);
         
+		if (level !== 0 && level !== 'random') {
+            //PokiSDK.gameplayStart();
+        }
+		
         // Utiliser setTimeout pour permettre au navigateur de mettre à jour l'affichage
         setTimeout(() => {
             resolve();
@@ -1154,6 +1355,7 @@ function initLevel(level) {
 // Fonction de génération de niveau aléatoire
 async function initRandomLevel(config) {
     console.log("Entering initRandomLevel");
+	hasFirstClick = false;
     
     // Forcer l'affichage du conteneur d'hexagones
     const hexagonContainer = document.getElementById('hexagon-container');
@@ -1208,6 +1410,8 @@ async function initRandomLevel(config) {
             updateLevelSelector('random');
         });
         
+		//PokiSDK.gameplayStart();
+		
     } else {
         console.error("Impossible de générer un niveau aléatoire.");
         alert("Échec de la génération du niveau aléatoire. Retour au niveau précédent.");
@@ -1308,15 +1512,22 @@ function rotateAdjacentTiles(tileIndex) {
 
 function updateMovesDisplay() {
     const movesDisplay = document.getElementById('moves-display');
-	movesDisplay.style.color = remainingMoves < 0 ? '#ff9999' : 'lightyellow';
+    movesDisplay.style.color = remainingMoves < 0 ? '#ff9999' : 'lightyellow';
     movesDisplay.textContent = `Remaining moves: ${remainingMoves}`;
     movesDisplay.style.position = 'absolute';
-    movesDisplay.style.top = '58px'; // Ajustez cette valeur pour remonter le texte
+    movesDisplay.style.top = '58px';
     movesDisplay.style.left = '0';
     movesDisplay.style.right = '0';
     movesDisplay.style.textAlign = 'center';
     movesDisplay.style.fontSize = '12px';
-	movesDisplay.style.fontStyle = 'italic';
+    movesDisplay.style.fontStyle = 'italic';
+
+    // Démarrer l'animation si les coups restants sont -3 ou moins
+    if (remainingMoves <= -3) {
+        startResetHint();
+    } else {
+        stopResetHint();
+    }
 }
 
 function playFlipSound() {
@@ -1789,28 +2000,78 @@ async function handleClick(x, y) {
 
     const clickedTile = getTileFromCoordinates(x, y);
     if (clickedTile !== -1) {
-        // Add first click tracking
-        if (!hasFirstClick) {
+        if (!hasFirstClick && currentLevel === 0) {
             hasFirstClick = true;
             //PokiSDK.gameplayStart();
         }
-		
-		// Capturer l'état actuel de l'animation avant de la désactiver
-        wasAnimating = hintAnimationFrame !== null;
         
-        // Désactiver les indices au clic
-        showHints = false;
-        if (hintAnimationFrame) {
-            cancelAnimationFrame(hintAnimationFrame);
-            hintAnimationFrame = null;
+        // Si on est au niveau 0 et qu'on clique sur la tuile 3, on supprime la main
+        if (currentLevel === 0 && clickedTile === 3) {
+            const tutorialCursor = document.getElementById('tutorial-cursor');
+            if (tutorialCursor) {
+                tutorialCursor.remove();
+            }
         }
         
+        wasAnimating = hintAnimationFrame !== null;
+        
+        // Vérifier si le clic est incorrect dans les premiers niveaux
+        if (currentLevel < 5 && 
+            hintPositions[currentLevel] && 
+            !hintPositions[currentLevel].includes(clickedTile)) {
+            
+            // Activer le clignotement d'erreur
+            isErrorBlinking = true;
+            
+            // Réinitialiser le timer précédent si existant
+            if (errorBlinkTimeout) {
+                clearTimeout(errorBlinkTimeout);
+            }
+            
+            // Arrêter le clignotement d'erreur après 1.5 secondes
+            errorBlinkTimeout = setTimeout(() => {
+                isErrorBlinking = false;
+            }, 1500);
+
+            // Redémarrer l'animation des indices si c'est un mauvais clic
+            if (hintAnimationFrame) {
+                cancelAnimationFrame(hintAnimationFrame);
+                hintAnimationFrame = null;
+            }
+            animateHintCursors();
+            return; // On arrête ici si c'est un mauvais clic
+        }
+
         const clickedTileState = tiles[clickedTile].currentState;
         
-        // Pour les tuiles actionnables, mettre à jour l'historique et les mouvements
+        // Ne désactiver les indices que pour les niveaux non tutoriels ou la tuile 3 du niveau 0
+        if (currentLevel >= 5 || (currentLevel === 0 && clickedTile === 3)) {
+            // Réinitialiser l'état des indices et du bouton
+            showHints = false;
+            currentHintIndex = 0;
+            if (hintAnimationFrame) {
+                cancelAnimationFrame(hintAnimationFrame);
+                hintAnimationFrame = null;
+            }
+            const hintButton = document.getElementById('hint-btn');
+            isHintButtonActive = true;
+            hintButton.style.opacity = '1';
+            hintButton.style.cursor = 'pointer';
+        }
+        
         if (clickedTileState === 0 || clickedTileState === 3 || 
             clickedTileState === 4 || clickedTileState === 5 || 
             clickedTileState === 6 || clickedTileState === 7) {
+                
+            // Désactiver le clignotement d'erreur si le clic est correct
+            if (hintPositions[currentLevel] && 
+                hintPositions[currentLevel].includes(clickedTile)) {
+                isErrorBlinking = false;
+                if (errorBlinkTimeout) {
+                    clearTimeout(errorBlinkTimeout);
+                }
+            }
+
             history.push(tiles.map(tile => ({ ...tile })));
             remainingMoves--;
             updateMovesDisplay();
@@ -1846,10 +2107,12 @@ async function handleClick(x, y) {
             await checkWinCondition();
         }
 
-        // Redémarrer l'animation des indices si elle était active, quel que soit le type de tuile cliquée
+        // Réanimer les indices pour les niveaux tutoriels (sauf la tuile 3 du niveau 0)
+        // ou pour les niveaux normaux si les indices étaient actifs
         if (wasAnimating && 
             hintPositions[currentLevel] && 
-            (currentLevel < 5 || showHints)) {
+            ((currentLevel < 5 && !(currentLevel === 0 && clickedTile === 3)) || 
+            (currentLevel >= 5 && showHints))) {
             animateHintCursors();
         }
     }
@@ -2241,21 +2504,17 @@ function showCongratulationsMessage(level, starsEarned) {
 						if (y > canvas.height / 2 + 100 && y < canvas.height / 2 + 140) {
 							if (x > canvas.width / 2 - 170 && x < canvas.width / 2 - 30) {
 								cleanup();
-								//PokiSDK.gameplayStart();
 								resolve({ action: 'retry', starsEarned: 0 });
 							} else {
 								cleanup();
-								//PokiSDK.gameplayStart();
 								resolve({ action: 'next', starsEarned: starsEarned });
 							}
 						} else {
 							cleanup();
-							//PokiSDK.gameplayStart();
 							resolve({ action: 'next', starsEarned: starsEarned });
 						}
 					} else {
 						cleanup();
-						//PokiSDK.gameplayStart();
 						resolve({ action: 'next', starsEarned: starsEarned });
 					}
 				}
@@ -2447,7 +2706,7 @@ function showFinalVictoryScreen() {
             ctx.font = 'italic bold 30px Blouse, sans-serif';
             ctx.fillText('Congratulations!', centerX, 40);
             ctx.font = 'italic bold 24px Blouse, sans-serif';
-            ctx.fillText('You finished Untile v0.8.28b', centerX, 80);
+            ctx.fillText('You finished Untile v0.8.32b', centerX, 80);
 
             ctx.save();
             ctx.translate(centerX, centerY);
@@ -2591,6 +2850,9 @@ async function checkWinCondition() {
 						showHomeScreen();
 					}
 				} else {
+					if (currentLevel === 5) {
+                            await showTutorialImage('Unlock0.jpg');
+                        }
 					if (currentLevel === 20) {
 						await showTutorialImage('Unlock.jpg');
 					} else if (currentLevel === 30) {
@@ -2684,6 +2946,8 @@ function setButtonsEnabled(enabled) {
 }
 
 function resetCurrentLevel() {
+    stopResetHint(); // Arrêter l'animation
+    
     if (currentLevel === 'random' && storedRandomLevel) {
         tiles = storedRandomLevel.grid.map((state, index) => ({
             currentState: state,
@@ -2742,19 +3006,33 @@ document.getElementById('reset-btn').addEventListener('mouseout', function() {
 
 // Gestion du bouton d'indices
 document.getElementById('hint-btn').addEventListener('mouseup', function(e) {
-    if (e.target.style.pointerEvents === 'none') return;
+    if (e.target.style.pointerEvents === 'none' || !isHintButtonActive) return;
     this.src = 'hint-button.png';
+    
     if (currentLevel === 'random' || currentLevel >= 4) {
-        showHints = !showHints;
+        if (!showHints) {
+            // Premier clic sur le bouton hint
+            showHints = true;
+            currentHintIndex = 0;
+            maxHintsForLevel = currentLevel === 'random' ? 
+                storedRandomLevel.clickSequence.length :
+                hintPositions[currentLevel].length;
+        } else {
+            // Incrémenter l'index avant de vérifier le maximum
+            currentHintIndex++;
+            
+            // Vérifier si on a atteint le maximum d'indices
+            if (currentHintIndex >= maxHintsForLevel - 1) {
+                // Garder tous les indices affichés et désactiver le bouton
+                currentHintIndex = maxHintsForLevel - 1;
+                isHintButtonActive = false;
+                this.style.opacity = '0.5';
+                this.style.cursor = 'default';
+            }
+        }
+        
         if (showHints) {
             animateHintCursors();
-        } else {
-            if (hintAnimationFrame) {
-                cancelAnimationFrame(hintAnimationFrame);
-                hintAnimationFrame = null;
-            }
-            // Redessiner la grille pour effacer les indices
-            drawGrid();
         }
     }
 });
