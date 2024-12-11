@@ -46,8 +46,8 @@ let openedFromLevel = false;
 let showHints = false;
 let lastAnimationTime = 0;
 const BLINK_DURATION = 1000; // Durée complète d'un cycle en millisecondes
-const MIN_OPACITY = 0.1;
-const MAX_OPACITY = 0.4;
+const MIN_OPACITY = 0.3;
+const MAX_OPACITY = 0.8;
 
 // Ajout de nouvelles constantes pour les indices
 const NORMAL_BLINK_DURATION = 1000;  // Durée normale du clignotement
@@ -2004,6 +2004,21 @@ async function handleClick(x, y) {
             hasFirstClick = true;
             //PokiSDK.gameplayStart();
         }
+		
+		// Réinitialiser les indices pour les niveaux aléatoires
+        if (currentLevel === 'random') {
+            showHints = false;
+            currentHintIndex = 0;
+            if (hintAnimationFrame) {
+                cancelAnimationFrame(hintAnimationFrame);
+                hintAnimationFrame = null;
+            }
+            // Réactiver le bouton d'indices
+            const hintButton = document.getElementById('hint-btn');
+            isHintButtonActive = true;
+            hintButton.style.opacity = '1';
+            hintButton.style.cursor = 'pointer';
+        }
         
         // Si on est au niveau 0 et qu'on clique sur la tuile 3, on supprime la main
         if (currentLevel === 0 && clickedTile === 3) {
@@ -2476,7 +2491,7 @@ function showCongratulationsMessage(level, starsEarned) {
 		async function handleClick(event) {
 			if (animationComplete) {
 				if (level === 'Random') {
-					if (remainingMoves === 0) {
+					if (remainingMoves >= 0) {
 						cleanup();
 						//PokiSDK.gameplayStart();
 						resolve({ action: 'newRandom', starsEarned: 0 });
@@ -2532,7 +2547,7 @@ function showCongratulationsMessage(level, starsEarned) {
 				const buttonRight = centerX + (BUTTON_WIDTH/2 + BUTTON_SPACING/2);
 
 				if (level === 'Random') {
-					if (remainingMoves === 0) {
+					if (remainingMoves >= 0) {
 						hoveredButton = x > centerX - BUTTON_WIDTH/2 && x < centerX + BUTTON_WIDTH/2 ? 'new' : null;
 					} else {
 						if (x > buttonLeft - BUTTON_WIDTH/2 && x < buttonLeft + BUTTON_WIDTH/2) {
@@ -2570,7 +2585,7 @@ function showCongratulationsMessage(level, starsEarned) {
 			if (currentLevel !== 0) {
 				if (movesDisplay) movesDisplay.style.display = 'block';
 				if (undoButton) undoButton.style.display = 'block';
-				if (currentLevel >= 5) { 
+				if (currentLevel >= 5 || level === 'Random') { 
 					if (hintButton) hintButton.style.display = 'block';
 				}
 				if (resetButton) resetButton.style.display = 'block';
@@ -3231,7 +3246,9 @@ function generateNewRandomLevel(config) {
             hintAnimationFrame = null;
         }
         showHints = false;
+        currentHintIndex = 0;
         lastAnimationTime = 0;
+        isHintButtonActive = true; // Réactiver le bouton hint
 
         const randomLevel = generateRandomLevel(config.clicks, config.tileTypes);
         if (randomLevel) {
@@ -3269,7 +3286,14 @@ function resetCurrentRandomLevel() {
             hintAnimationFrame = null;
         }
         showHints = false;
+        currentHintIndex = 0;
         lastAnimationTime = 0;
+        isHintButtonActive = true; // Réinitialiser l'état du bouton hint
+
+        // Réinitialiser visuellement le bouton hint
+        const hintButton = document.getElementById('hint-btn');
+        hintButton.style.opacity = '1';
+        hintButton.style.cursor = 'pointer';
 
         if (storedRandomLevel) {
             tiles = storedRandomLevel.grid.map((state, index) => ({
@@ -3288,6 +3312,7 @@ function resetCurrentRandomLevel() {
         }
     });
 }
+
 
 
 
