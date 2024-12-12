@@ -15,7 +15,7 @@ PokiSDK.init().then(() => {
 // Déclaration de constantes 
 
 const canvas = document.getElementById('game-canvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: true });
 const hexagonContainer = document.getElementById('hexagon-container');
 
 const TILE_SIZE = 35;
@@ -82,7 +82,7 @@ const levels = [
   { grid: [1,0,0,1,0,1,0], optimalMoves: 1, difficulty: 'easy', world: 1  }, //lvl 2
   { grid: [1,1,0,0,0,1,1], optimalMoves: 2, difficulty: 'easy', world: 1  }, //lvl 3
   { grid: [0,1,0,0,0,0,1], optimalMoves: 2, difficulty: 'easy', world: 1  }, //lvl 4
-  { grid: [0,0,0,1,0,0,0], optimalMoves: 3, difficulty: 'easy', world: 1  }, //lvl 5 
+  { grid: [1,1,1,0,0,0,1,1,0,1,0,0,0,0,1,0,1,1,0], optimalMoves: 2, difficulty: 'easy', world: 1 }, //lvl 5 
   { grid: [0,0,0,1,0,1,1,1,0,0,0,1,1,1,0,1,0,0,0], optimalMoves: 2, difficulty: 'easy', world: 2 }, //lvl 6
   { grid: [0,0,0,1,1,0,0,1,0,0,0,0,1,1,1,0,0,0,0], optimalMoves: 2, difficulty: 'easy', world: 2}, //lvl 7
   { grid: [0,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,0], optimalMoves: 4, difficulty: 'easy', world: 2}, //lvl 8
@@ -172,7 +172,7 @@ const hintPositions = {
   1: [2],   
   2: [2, 4],  
   3: [0, 5],    
-  4: [0, 4, 5], 
+  4: [4, 18], 
   5: [8, 10],  
   6: [8, 9], 
   7: [0, 8, 10, 18],
@@ -930,7 +930,7 @@ function isSmallGrid(level) {
         // Pour le niveau aléatoire, nous utiliserons toujours la grande grille
         return false;
     }
-    return level < 5 || (level >= 20 && level < 22) || level === 40;
+    return level < 4 || (level >= 20 && level < 22) || level === 40;
 }
 
 function drawHexagon(ctx, x, y, size, state) {
@@ -1208,15 +1208,16 @@ function showTutorialImage(imageName) {
     return new Promise(resolve => {
         setButtonsEnabled(false);
         isLevelTransition = true;
-		const movesDisplay = document.getElementById('moves-display');
+        const movesDisplay = document.getElementById('moves-display');
         const undoButton = document.getElementById('undo-btn');
-		const hintButton = document.getElementById('hint-btn');
+        const hintButton = document.getElementById('hint-btn');
         const resetButton = document.getElementById('reset-btn');
         
         if (movesDisplay) movesDisplay.style.display = 'none';
         if (undoButton) undoButton.style.display = 'none';
-		if (hintButton) hintButton.style.display = 'none';
+        if (hintButton) hintButton.style.display = 'none';
         if (resetButton) resetButton.style.display = 'none';
+        
         const tutorialImage = new Image();
         tutorialImage.src = imageName;
         
@@ -1227,11 +1228,11 @@ function showTutorialImage(imageName) {
         function drawTutorialImage() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Fond semi-transparent
-            ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * opacity})`;
+            // Fond semi-transparent avec la même teinte que l'écran d'accueil
+            ctx.fillStyle = `rgba(0, 10, 20, ${0 * opacity})`;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-			// Définir les dimensions de l'image en fonction du device
+            // Définir les dimensions de l'image en fonction du device
             let imageWidth, imageHeight;
             if (isTouchDevice()) {
                 // Sur mobile, utiliser 95% de la largeur de l'écran
@@ -1250,6 +1251,7 @@ function showTutorialImage(imageName) {
             
             ctx.globalAlpha = opacity;
             ctx.drawImage(tutorialImage, x, y, imageWidth, imageHeight);
+            ctx.globalAlpha = 1;
         }
 
         function animate() {
@@ -1259,7 +1261,7 @@ function showTutorialImage(imageName) {
                 animationId = requestAnimationFrame(animate);
             } else {
                 isAnimationComplete = true;
-                drawTutorialImage(); // Dessiner une dernière fois pour s'assurer que tout est visible
+                drawTutorialImage();
             }
         }
 
@@ -1276,25 +1278,24 @@ function showTutorialImage(imageName) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             isLevelTransition = false;
             setButtonsEnabled(true);
+            
             // Restaurer les boutons seulement si on n'est pas au premier niveau
             if (currentLevel !== 0) {
                 if (movesDisplay) movesDisplay.style.display = 'block';
                 if (undoButton) undoButton.style.display = 'block';
-                if (currentLevel >= 5) { // Restaurer le bouton hint uniquement si niveau ≥ 6
+                if (currentLevel >= 5) {
                     if (hintButton) hintButton.style.display = 'block';
                 }
                 if (resetButton) resetButton.style.display = 'block';
             }
         }
 
-        // Ajouter l'écouteur de clic au document entier
         document.addEventListener('click', handleClick);
 
         tutorialImage.onload = () => {
             animate();
         };
 
-        // Stockez la fonction de nettoyage
         cleanupCongratulationsMessage = cleanup;
     });
 }
@@ -1306,6 +1307,13 @@ function initLevel(level) {
 		isLevelTransition = false;
         isTransitioning = false;
         updateLevelSelector(level);
+		
+		 // Si l'écran d'accueil est affiché, ne pas montrer les éléments du jeu
+        const homeScreenVisible = document.getElementById('home-screen').style.display === 'block';
+        if (!homeScreenVisible) {
+            document.getElementById('hexagon-container').style.display = '';
+            updateElementsVisibility();
+        }
         
         // Nettoyage complet du canvas et du conteneur d'hexagones
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1355,11 +1363,10 @@ function initLevel(level) {
 // Fonction de génération de niveau aléatoire
 async function initRandomLevel(config) {
     console.log("Entering initRandomLevel");
-	hasFirstClick = false;
+    hasFirstClick = false;
     
-    // Forcer l'affichage du conteneur d'hexagones
-    const hexagonContainer = document.getElementById('hexagon-container');
-    hexagonContainer.style.display = 'block';
+    // Vérifier si l'écran d'accueil est visible
+    const homeScreenVisible = document.getElementById('home-screen').style.display === 'block';
     
     // Réinitialiser l'état des indices
     showHints = false;
@@ -1401,25 +1408,25 @@ async function initRandomLevel(config) {
         remainingMoves = config.clicks;
         history = [];
         
-        // Forcer le redessin complet
-        requestAnimationFrame(() => {
-            drawGrid();
-            updateMovesDisplay();
-            updateStarsDisplay();
-            updateElementsVisibility();
-            updateLevelSelector('random');
-        });
+        // N'afficher les éléments que si l'écran d'accueil n'est pas visible
+        if (!homeScreenVisible) {
+            requestAnimationFrame(() => {
+                document.getElementById('hexagon-container').style.display = 'block';
+                drawGrid();
+                updateMovesDisplay();
+                updateStarsDisplay();
+                updateElementsVisibility();
+                updateLevelSelector('random');
+            });
+        }
         
-		//PokiSDK.gameplayStart();
-		
     } else {
         console.error("Impossible de générer un niveau aléatoire.");
         alert("Échec de la génération du niveau aléatoire. Retour au niveau précédent.");
     }
     
-    setButtonsEnabled(true);
+    setButtonsEnabled(!homeScreenVisible);
 }
-
 
 
 // Mécaniques de retournement de tuiles
@@ -1923,7 +1930,7 @@ function drawLevelText() {
         const currentWorldNum = levels[currentLevel].world;
         const worldName = worlds[currentWorldNum].name;
         const relativeLevel = currentLevel - worlds[currentWorldNum].startLevel + 1;
-        ctx.fillText(`${worldName} - Level ${relativeLevel}`, centerX, 10);
+        ctx.fillText(`${worldName} - Level ${relativeLevel}`, centerX, 13);
     }
     
     // Afficher la difficulté
@@ -1952,7 +1959,7 @@ function drawLevelText() {
     ctx.font = '12px Blouse';
     ctx.fillStyle = difficultyColor;
     ctx.textAlign = 'center';
-    ctx.fillText(`${difficulty.toUpperCase()}`, centerX, 40);
+    ctx.fillText(`${difficulty.toUpperCase()}`, centerX, 43);
 }
     
 
@@ -2383,8 +2390,10 @@ function showCongratulationsMessage(level, starsEarned) {
         
         function drawMessage() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = `rgba(0, 0, 0, ${opacity * 0.7})`;
+            ctx.save();
+            ctx.fillStyle = `rgba(0, 10, 20, ${opacity * 0.3})`;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.restore();
 
             ctx.textAlign = 'center';
             ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
@@ -2700,7 +2709,7 @@ function showFinalVictoryScreen() {
 
         function handleClose() {
             cleanup();
-			showHomeScreen();
+			window.location.reload();
             resolve('close');
         }
 
@@ -2721,7 +2730,7 @@ function showFinalVictoryScreen() {
             ctx.font = 'italic bold 30px Blouse, sans-serif';
             ctx.fillText('Congratulations!', centerX, 40);
             ctx.font = 'italic bold 24px Blouse, sans-serif';
-            ctx.fillText('You finished Untile v0.8.32b', centerX, 80);
+            ctx.fillText('You finished Untile v0.9.1b', centerX, 80);
 
             ctx.save();
             ctx.translate(centerX, centerY);
@@ -2926,14 +2935,25 @@ function updateStarsDisplay() {
 //Gestion de l'UI au premier niveau 
 function updateElementsVisibility() {
     const isFirstLevel = currentLevel === 0;
-    const showHintButton = currentLevel >= 5 || currentLevel === 'random'; // Afficher à partir du niveau 6 (index 5)
-    document.getElementById('home-button').style.display = showHintButton ? 'block' : 'none';
-    document.getElementById('stars-display').style.display = isFirstLevel ? 'none' : 'block';
-    document.getElementById('undo-btn').style.display = isFirstLevel ? 'none' : 'block';
-    document.getElementById('hint-btn').style.display = showHintButton ? 'block' : 'none';
-    document.getElementById('reset-btn').style.display = isFirstLevel ? 'none' : 'block';
-    document.getElementById('moves-display').style.display = isFirstLevel ? 'none' : 'block';
-    // document.getElementById('level-select').style.display = isFirstLevel ? 'none' : 'block';
+    const showHintButton = currentLevel >= 5 || currentLevel === 'random';
+    const homeScreenVisible = document.getElementById('home-screen').style.display === 'block';
+
+    if (!homeScreenVisible) {
+        document.getElementById('home-button').style.display = showHintButton ? 'block' : 'none';
+        document.getElementById('stars-display').style.display = isFirstLevel ? 'none' : 'block';
+        document.getElementById('undo-btn').style.display = isFirstLevel ? 'none' : 'block';
+        document.getElementById('hint-btn').style.display = showHintButton ? 'block' : 'none';
+        document.getElementById('reset-btn').style.display = isFirstLevel ? 'none' : 'block';
+        document.getElementById('moves-display').style.display = isFirstLevel ? 'none' : 'block';
+    } else {
+        // Si l'écran d'accueil est visible, on ne montre que le compteur d'étoiles
+        document.getElementById('stars-display').style.display = 'block';
+        document.getElementById('home-button').style.display = 'none';
+        document.getElementById('undo-btn').style.display = 'none';
+        document.getElementById('hint-btn').style.display = 'none';
+        document.getElementById('reset-btn').style.display = 'none';
+        document.getElementById('moves-display').style.display = 'none';
+    }
 }
 
 //Gestion des boutons de contrôle
@@ -3368,14 +3388,8 @@ function updateLevelStars(level, stars) {
 function resetProgress() {
     if (confirm("Are you sure you want to reset your progress? This action is irreversible.")) {
         localStorage.removeItem('untileProgress');
-        currentLevel = 0;
-        totalStars = 0;
-        gameProgress.starsPerLevel = {};
-        gameProgress.hasSeenTutorial = {};
-        initLevel(currentLevel);
-        updateStarsDisplay();
-        updateInstructionVisibility();
-        updateElementsVisibility();
+        // Recharger la page immédiatement après la réinitialisation
+        window.location.reload();
     }
 }
 
@@ -3630,13 +3644,47 @@ window.onload = async function() {
 
 // Fonctions de gestion de l'écran d'accueil
 function showHomeScreen() {
+    // Afficher l'écran d'accueil
     document.getElementById('home-screen').style.display = 'block';
+    
+    // Masquer les éléments du jeu
+    document.getElementById('hexagon-container').style.display = 'none';
+    document.getElementById('moves-display').style.display = 'none';
+    document.getElementById('home-button').style.display = 'none';
+    document.getElementById('undo-btn').style.display = 'none';
+    document.getElementById('hint-btn').style.display = 'none';
+    document.getElementById('reset-btn').style.display = 'none';
+    
+    // Effacer le canvas pour masquer le titre du niveau et la difficulté
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 
 function hideHomeScreen() {
+    // Masquer l'écran d'accueil
     document.getElementById('home-screen').style.display = 'none';
+    
+    // Réafficher les éléments du jeu
     document.getElementById('hexagon-container').style.display = 'block';
+    document.getElementById('moves-display').style.display = 'block';
+    
+    // Réafficher les boutons de contrôle seulement si on n'est pas au niveau 0
+    if (currentLevel !== 0) {
+        document.getElementById('undo-btn').style.display = 'block';
+        document.getElementById('reset-btn').style.display = 'block';
+        document.getElementById('home-button').style.display = 'block';
+        
+        // Réafficher le bouton hint uniquement si niveau ≥ 5
+        if (currentLevel >= 5 || currentLevel === 'random') {
+            document.getElementById('hint-btn').style.display = 'block';
+        }
+    }
+    
+    // Redessiner le niveau
+    drawGrid();
+    updateElementsVisibility();
+    updateInstructionVisibility();
 }
+
 
 function continueGame() {
     hideHomeScreen();
@@ -4276,9 +4324,147 @@ starsDisplay.addEventListener('mouseleave', () => {
 });
 
 
+// Configuration de la grille de fond
+const BACKGROUND_TILE_SIZE = 90;
+const hexWidth = BACKGROUND_TILE_SIZE * 2;
+const hexHeight = Math.sqrt(3) * BACKGROUND_TILE_SIZE;
+const horizontalSpacing = hexWidth * 0.75 + 35;
+const verticalSpacing = hexHeight - 5;
+let animationOffset = 0;
+let backgroundAnimationFrame = null;
+
+function calculateGridSize() {
+    const width = window.innerHeight;  // Inversé à cause de la rotation
+    const height = window.innerWidth;  // Inversé à cause de la rotation
+    
+    if (isTouchDevice()) {
+        // Sur mobile : 5 colonnes fixes
+        const cols = 5;
+        const rows = Math.ceil(height / verticalSpacing) + 2;
+        return { width, height, cols, rows, isMobile: true };
+    } else {
+        // Sur desktop : calcul normal avec colonnes supplémentaires pour l'animation
+        const cols = Math.ceil(width / horizontalSpacing) + 6;
+        const rows = Math.ceil(height / verticalSpacing) + 2;
+        return { width, height, cols, rows, isMobile: false };
+    }
+}
+
+
+function generateHexagonPoints(x, y, offset) {
+    const points = [];
+    for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i + Math.PI / 2;
+        const hx = x + offset + BACKGROUND_TILE_SIZE * Math.cos(angle);
+        const hy = y + BACKGROUND_TILE_SIZE * Math.sin(angle);
+        points.push(`${hx},${hy}`);
+    }
+    return points.join(' ');
+}
+
+function generateBackgroundGrid() {
+    const gridContainer = document.getElementById('hexagon-grid');
+    const dimensions = calculateGridSize();
+    
+    gridContainer.innerHTML = '';
+    
+    // Créer un groupe pour la rotation fixe
+    const rotatedGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    
+    // Appliquer la rotation à 90 degrés autour du centre
+    rotatedGroup.setAttribute('transform', 
+        `translate(${centerX}, ${centerY}) 
+         rotate(90) 
+         translate(${-centerY}, ${-centerX})`
+    );
+    
+    gridContainer.appendChild(rotatedGroup);
+    
+    // Créer un groupe pour l'animation de défilement
+    const animatedGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    rotatedGroup.appendChild(animatedGroup);
+
+    if (dimensions.isMobile) {
+        // Calcul du décalage pour centrer les 5 colonnes
+        const totalWidth = dimensions.cols * horizontalSpacing;
+        const startX = -totalWidth / 2;
+
+        // Sur mobile, on crée deux séries de 5 colonnes
+        for (let set = 0; set < 2; set++) {
+            for (let row = 0; row < dimensions.rows; row++) {
+                for (let col = 0; col < dimensions.cols; col++) {
+                    const x = startX + (col * horizontalSpacing) + (set * dimensions.cols * horizontalSpacing);
+                    const y = row * verticalSpacing;
+                    const offset = row % 2 ? horizontalSpacing / 2 : 0;
+
+                    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                    polygon.setAttribute('points', generateHexagonPoints(x, y, offset));
+                    polygon.setAttribute('fill', 'black');
+                    polygon.setAttribute('stroke', 'cyan');
+                    polygon.setAttribute('stroke-width', '1.5');
+                    polygon.setAttribute('stroke-opacity', '0.2');
+
+                    animatedGroup.appendChild(polygon);
+                }
+            }
+        }
+    } else {
+        // Version desktop inchangée
+        for (let set = 0; set < 2; set++) {
+            for (let row = 0; row < dimensions.rows; row++) {
+                for (let col = 0; col < dimensions.cols; col++) {
+                    const x = (col * horizontalSpacing) + (set * dimensions.cols * horizontalSpacing);
+                    const y = row * verticalSpacing;
+                    const offset = row % 2 ? horizontalSpacing / 2 : 0;
+
+                    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                    polygon.setAttribute('points', generateHexagonPoints(x, y, offset));
+                    polygon.setAttribute('fill', 'black');
+                    polygon.setAttribute('stroke', 'cyan');
+                    polygon.setAttribute('stroke-width', '1.5');
+                    polygon.setAttribute('stroke-opacity', '0.2');
+
+                    animatedGroup.appendChild(polygon);
+                }
+            }
+        }
+    }
+
+    // Animation de défilement
+    function animateBackground() {
+        animationOffset -= 0.2;
+        
+        if (Math.abs(animationOffset) >= dimensions.cols * horizontalSpacing) {
+            animationOffset = 0;
+        }
+        
+        animatedGroup.style.transform = `translateX(${animationOffset}px)`;
+        backgroundAnimationFrame = requestAnimationFrame(animateBackground);
+    }
+
+    if (backgroundAnimationFrame) {
+        cancelAnimationFrame(backgroundAnimationFrame);
+    }
+    
+    animateBackground();
+}
+
 // Window.onload pour ajouter les écouteurs d'événements
 const originalOnload = window.onload;
 window.onload = async function() {
+	
+	const fadeOverlay = document.getElementById('fade-overlay');
+	// Attendre un court instant pour s'assurer que tout est bien chargé
+	setTimeout(() => {
+		fadeOverlay.style.opacity = '0';
+		// Supprimer l'élément une fois l'animation terminée
+		setTimeout(() => {
+			fadeOverlay.remove();
+		}, 1500); // Correspond à la durée de la transition
+	}, 100);
+	
     // Charger la progression sauvegardée
     if (!loadProgress()) {
         currentLevel = 0;
@@ -4323,6 +4509,7 @@ window.onload = async function() {
         showHomeScreen();
     }
 
+
     // Mettre à jour les affichages
     updateStarsDisplay();
     updateInstructionVisibility();
@@ -4330,3 +4517,13 @@ window.onload = async function() {
     animateRotationSymbol();
     updateLevelSelector(currentLevel);
 };
+
+window.addEventListener('load', generateBackgroundGrid);
+window.addEventListener('resize', generateBackgroundGrid);
+
+// Nettoyage de l'animation lors du déchargement de la page
+window.addEventListener('unload', () => {
+    if (backgroundAnimationFrame) {
+        cancelAnimationFrame(backgroundAnimationFrame);
+    }
+});

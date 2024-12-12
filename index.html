@@ -66,8 +66,6 @@
     }
 	
     #game-canvas {
-        border: 1px solid black;
-        background-color: #000000;
         margin-bottom: 110px;
     }
     #hexagon-container {
@@ -123,6 +121,7 @@
     background: none;
     border: none;
     cursor: pointer;
+	margin-top: 0px;
 	}
 
 	#home-button:hover {
@@ -150,15 +149,21 @@
 </style>
 </head>
 <body>
+	<div id="fade-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: black; z-index: 10000; transition: opacity 1.5s ease-out;"></div>
+	<div id="background-grid" class="fixed inset-0 overflow-hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -10; background-color: black;">
+		<svg width="100%" height="100%" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;">
+			<g id="hexagon-grid"></g>
+		</svg>
+	</div>
 	<div id="instruction" style="height: 20px"><i>Click on the correct blank tile to flip the adjacent ones and clear the board.</i></div>
     
     <br>    
     <div id="game-container" >
 		<button id="home-button" style="position: fixed; top: 5px; left: 5px; font-size: 16px; z-index: 10000; color: rgba(221, 199, 110, 1); background-color: rgba(40, 30, 20, 0.5); padding: 5px 10px; border-radius: 5px; border: 1px solid #6e6337; cursor: pointer; display: none; height: 31px;">
-		  Home
+		  <span style="display: inline-block; transform: translateY(2px)">Home</span>
 		</button>
 
-		<div id="home-screen" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 1); z-index: 10001; ">
+		<div id="home-screen" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 10, 20, 0); z-index: 10001;">
 		<div class="game-title">Untile</div>
 		  <button id="home-close-btn" style="position: absolute; right: 20px; top: 20px; color: #DDC76E; font-size: 24px; cursor: pointer; background: none; border: none;"></button>
 		  
@@ -195,7 +200,7 @@
 		</div>
 	
 
-		<div id="levels-modal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); z-index: 10001;">
+		<div id="levels-modal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0); z-index: 10001;">
 			<div class="modal-content" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: rgba(0, 20, 20, 0.95); padding: 20px; border-radius: 10px; border: 1px solid #AAAAAA; max-width: 80%; max-height: 80%; overflow-y: auto;">
 				<span class="close-button" style="position: absolute; right: 10px; top: 10px; color: #FFFFFF; cursor: pointer; font-size: 24px;">&times;</span>
 				<h2 style="color: #FFFFFF; text-align: center; margin-bottom: 20px; font-size: 24px;">Select Level</h2>
@@ -204,7 +209,7 @@
 				</div>
 			</div>
 		</div>
-		<div id="stars-display" style="position: fixed; top: 5px; right: 5px; font-size: 16px; z-index: 10000; color: rgba(221, 199, 110, 1); background-color: rgba(40, 30, 20, 0.5); padding: 5px 10px; border-radius: 5px; border: 1px solid #6e6337; cursor: pointer; transition: all 0.2s ease;">
+		<div id="stars-display" style="position: fixed; top: 5px; right: 5px; font-size: 16px; z-index: 10002; color: rgba(221, 199, 110, 1); background-color: rgba(40, 30, 20, 0.5); padding: 3px 5px 7px 5px; border-radius: 5px; border: 1px solid #6e6337; cursor: pointer; transition: all 0.2s ease; height: 20px;">
 		</div>
         <canvas id="game-canvas" width="1000" height="500"></canvas>
         <div id="hexagon-container"></div>
@@ -212,7 +217,7 @@
 		<div id="level-info" style="text-align: center; margin-top: 10px;">
         <span id="difficulty-display" style="margin-right: 10px;"></span>
         <span id="optimal-moves-display"></span>
-    </div>
+		</div>
 
         <br>
         <center>
