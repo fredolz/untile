@@ -75,19 +75,31 @@ let hoveredTileIndex = null;
 let hoverOpacity = 1;
 let hoverDirection = -1;
 
+// Positions du personnage selon la taille de la grille
+const CHARACTER_POSITIONS = {
+    small: {
+        initial: { top: 150, left: 370 },
+        victory: { top: 310, left: 650 }
+    },
+    large: {
+        initial: { top: 120, left: 320 },
+        victory: { top: 310, left: 650 }
+    }
+};
+
 // Définition des niveaux
 
 const levels = [
   { grid: [1,1,1,0,1,1,1], optimalMoves: 1, difficulty: 'easy', world: 1  }, //lvl 1
   { grid: [1,0,0,1,0,1,0], optimalMoves: 1, difficulty: 'easy', world: 1  }, //lvl 2
-  { grid: [1,1,0,0,0,1,1], optimalMoves: 2, difficulty: 'easy', world: 1  }, //lvl 3
-  { grid: [0,1,0,0,0,0,1], optimalMoves: 2, difficulty: 'easy', world: 1  }, //lvl 4
-  { grid: [1,1,1,0,0,0,1,1,0,1,0,0,0,0,1,0,1,1,0], optimalMoves: 2, difficulty: 'easy', world: 1 }, //lvl 5 
+  { grid: [1,0,1,0,1,0,1], optimalMoves: 2, difficulty: 'easy', world: 1  }, //lvl 3
+  { grid: [0,0,1,0,0,0,1], optimalMoves: 2, difficulty: 'easy', world: 1  }, //lvl 4
+  { grid: [0,0,1,0,1,1,0,0,0,1,1,1,1,1,1,0,0,0,1], optimalMoves: 2, difficulty: 'easy', world: 1 }, //lvl 5 
   { grid: [0,0,0,1,0,1,1,1,0,0,0,1,1,1,0,1,0,0,0], optimalMoves: 2, difficulty: 'easy', world: 2 }, //lvl 6
   { grid: [0,0,0,1,1,0,0,1,0,0,0,0,1,1,1,0,0,0,0], optimalMoves: 2, difficulty: 'easy', world: 2}, //lvl 7
   { grid: [0,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,0], optimalMoves: 4, difficulty: 'easy', world: 2}, //lvl 8
   { grid: [1,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,0], optimalMoves: 3, difficulty: 'easy', world: 2}, //lvl 9
-  { grid: [0,0,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0,0], optimalMoves: 2, difficulty: 'easy', world: 2}, //lvl 10
+  { grid: [0,0,0,0,0,0,0,0,1,0,0,1,0,0,1,0,0,1,0], optimalMoves: 2, difficulty: 'easy', world: 2}, //lvl 10
   { grid: [0,1,0,0,1,0,0,1,1,0,1,1,0,0,1,0,0,1,0], optimalMoves: 3, difficulty: 'easy', world: 2}, //lvl 11
   { grid: [1,0,1,1,0,1,1,0,0,1,1,1,1,1,1,0,0,0,1], optimalMoves: 3, difficulty: 'easy', world: 2}, //lvl 12
   { grid: [0,0,0,1,0,1,1,1,0,1,0,0,0,1,0,1,1,1,1], optimalMoves: 3, difficulty: 'easy', world: 2}, //lvl 13
@@ -170,14 +182,14 @@ let isHintButtonActive = true; // Variable pour suivre l'état du bouton
 const hintPositions = {
   0: [3],    // Niveau 1: position 3
   1: [2],   
-  2: [2, 4],  
-  3: [0, 5],    
-  4: [4, 18], 
+  2: [1, 5],  
+  3: [0, 4],    
+  4: [7, 16], 
   5: [8, 10],  
   6: [8, 9], 
   7: [0, 8, 10, 18],
   8: [4, 13, 15],
-  9: [0, 3],
+  9: [13, 18],
   10: [3, 9, 15],
   11: [1, 7, 16],
   12: [8, 10, 14],
@@ -253,6 +265,7 @@ const hintPositions = {
 window.currentLevel = currentLevel;
 window.levels = levels;
 
+
 // Fonction pour obtenir les informations sur les mondes
 function getWorldInfo() {
   const worlds = {
@@ -275,10 +288,75 @@ function getWorldRelativeLevel(absoluteLevel) {
     return absoluteLevel - worlds[worldNum].startLevel + 1;
 }
 
+// Fonction pour déterminer facilement le monde actuel
+function getCurrentWorld() {
+    if (currentLevel === 'random') return null;
+    return levels[currentLevel].world;
+}
+
 // Detection d'un device mobile
 function isTouchDevice() {
 	return window.innerWidth <= 768;
 }
+
+
+// Système de sauvegarde locale 
+
+// Définir les données à sauvegarder
+const gameProgress = {
+    currentLevel: 0,
+    totalStars: 0,
+    starsPerLevel: {}, // Pour stocker les étoiles gagnées par niveau
+    hasSeenTutorial: {} // Pour suivre les tutoriels déjà vus
+};
+
+// Fonction pour sauvegarder la progression
+function saveProgress() {
+    const progressData = {
+        currentLevel: currentLevel,
+        totalStars: totalStars,
+        starsPerLevel: gameProgress.starsPerLevel,
+        hasSeenTutorial: gameProgress.hasSeenTutorial
+    };
+    localStorage.setItem('untileProgress', JSON.stringify(progressData));
+}
+
+// Fonction pour charger la progression
+function loadProgress() {
+    const savedProgress = localStorage.getItem('untileProgress');
+    if (savedProgress) {
+        const progressData = JSON.parse(savedProgress);
+        currentLevel = progressData.currentLevel;
+        totalStars = progressData.totalStars;
+        gameProgress.starsPerLevel = progressData.starsPerLevel || {};
+        gameProgress.hasSeenTutorial = progressData.hasSeenTutorial || {};
+        return true;
+    }
+    return false;
+}
+
+// Fonction pour mettre à jour les étoiles d'un niveau
+function updateLevelStars(level, stars) {
+    const currentStars = gameProgress.starsPerLevel[level] || 0;
+    if (stars > currentStars) {
+        gameProgress.starsPerLevel[level] = stars;
+        // Le total est recalculé à partir de tous les niveaux
+        totalStars = Object.entries(gameProgress.starsPerLevel)
+            .filter(([level, _]) => !isNaN(parseInt(level))) // Exclure les niveaux random
+            .reduce((sum, [_, stars]) => sum + stars, 0);
+        saveProgress();
+    }
+}
+
+// Ajouter un bouton pour réinitialiser la progression (optionnel)
+function resetProgress() {
+    if (confirm("Are you sure you want to reset your progress? This action is irreversible.")) {
+        localStorage.removeItem('untileProgress');
+        // Recharger la page immédiatement après la réinitialisation
+        window.location.reload();
+    }
+}
+
 
 
 let hintOpacity = 1;
@@ -522,6 +600,12 @@ function startHoverPreview(tileIndex) {
     if (isTouchDevice()) return;
     
     if (isLevelTransition || isFlipping || isTransitioning) return;
+    
+    // Obtenir le monde actuel
+    const currentWorld = getCurrentWorld();
+    
+    // Si on n'est pas dans les mondes 1, 2 ou 3, ou si c'est un niveau aléatoire, pas de prévisualisation
+    if (!currentWorld || currentWorld > 3) return;
     
     const tile = tiles[tileIndex];
     if (tile.currentState !== 0) return;
@@ -823,21 +907,21 @@ function updateInstructionVisibility() {
         instructionElement.style.position = 'absolute';
         instructionElement.style.width = '100%';
         instructionElement.style.textAlign = 'center';
-        instructionElement.style.top = `${hexagonRect.bottom - 500}px`;
+        instructionElement.style.top = `${hexagonRect.bottom - 510}px`;
         instructionElement.style.left = '0';
-        instructionElement.style.color = 'lightyellow';
+        instructionElement.style.color = 'white';
         instructionElement.style.fontStyle = 'italic';
         instructionElement.style.fontSize = '14px';
         instructionElement.style.zIndex = '1000';
-        instructionElement.innerHTML = '<b>Click</b> on the right blank tiles <br>to <b>flip</b> the others and <b>clear</b> the board!';
+        instructionElement.innerHTML = '<b style="color: yellow;">Click</b> on the right blank tiles<br>to<b style="color: #50ded4;"> flip </b>the others & <b style="color: #50ded4;">clear</b> the board';
 
         // Position centrale de la grille
         const centerX = (hexagonRect.left + hexagonRect.width / 2) + 10;
         const centerY = (hexagonRect.top + hexagonRect.height / 2) - 25;
         
         // Position de départ (en bas à droite)
-        const startX = hexagonRect.right - 460;
-        const startY = hexagonRect.bottom - 280;
+        const startX = hexagonRect.right - 480;
+        const startY = hexagonRect.bottom - 290;
 
         // Créer et positionner le curseur
         if (!cursorElement) {
@@ -934,6 +1018,9 @@ function isSmallGrid(level) {
 }
 
 function drawHexagon(ctx, x, y, size, state) {
+    const offset = state === 1 || state === 2 ? size * 0.1 : 0;
+    const innerSize = size * 0.8;
+
     ctx.beginPath();
     for (let i = 0; i < 6; i++) {
         const angle = (Math.PI / 3) * i;
@@ -957,27 +1044,26 @@ function drawHexagon(ctx, x, y, size, state) {
             break;
         case 1:
             gradient = ctx.createLinearGradient(gradientStartX, gradientStartY, gradientEndX, gradientEndY);
-            gradient.addColorStop(0, '#12d8ee');
-            gradient.addColorStop(1, '#ddfca0');
+            gradient.addColorStop(0, '#0fa6b9');
+            gradient.addColorStop(1, '#bcd988');
             ctx.fillStyle = gradient;
             break;
         case 2:
             gradient = ctx.createLinearGradient(gradientStartX, gradientStartY, gradientEndX, gradientEndY);
-            gradient.addColorStop(0, '#b74dd4');
-            gradient.addColorStop(1, '#5e8bb5');
+            gradient.addColorStop(0, '#9540b0');
+            gradient.addColorStop(1, '#4d7396');
             ctx.fillStyle = gradient;
             break;
-        case 3: // Tuile spéciale modifiée
+        case 3:
             ctx.fillStyle = '#101010';
             break;
-		case 4: // Nouvelle tuile neutre avec trait vertical
+        case 4:
             ctx.fillStyle = '#101010';
             ctx.fill();
             ctx.strokeStyle = 'cyan';
             ctx.lineWidth = 1.5;
             ctx.stroke();
             
-            // Dessiner le trait vertical cyan
             ctx.beginPath();
             ctx.moveTo(x, y - size / 2);
             ctx.lineTo(x, y + size / 2);
@@ -985,14 +1071,13 @@ function drawHexagon(ctx, x, y, size, state) {
             ctx.lineWidth = 2;
             ctx.stroke();
             break;
-		        case 5: // Tuile neutre avec trait diagonal (haut gauche vers bas droite)
+        case 5:
             ctx.fillStyle = '#101010';
             ctx.fill();
             ctx.strokeStyle = 'cyan';
             ctx.lineWidth = 1.5;
             ctx.stroke();
             
-            // Dessiner le trait diagonal cyan (30° sens anti-horaire)
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(-Math.PI / 3);
@@ -1004,14 +1089,13 @@ function drawHexagon(ctx, x, y, size, state) {
             ctx.stroke();
             ctx.restore();
             break;
-        case 6: // Tuile neutre avec trait diagonal (bas gauche vers haut droite)
+        case 6:
             ctx.fillStyle = '#101010';
             ctx.fill();
             ctx.strokeStyle = 'cyan';
             ctx.lineWidth = 1.5;
             ctx.stroke();
             
-            // Dessiner le trait diagonal cyan (30° sens horaire)
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(Math.PI / 3);
@@ -1023,7 +1107,7 @@ function drawHexagon(ctx, x, y, size, state) {
             ctx.stroke();
             ctx.restore();
             break;
-		case 7: // Nouvelle tuile avec cercle animé
+        case 7:
             ctx.fillStyle = '#101010';
             ctx.fill();
             ctx.strokeStyle = 'cyan';
@@ -1035,18 +1119,15 @@ function drawHexagon(ctx, x, y, size, state) {
     }
     
     ctx.fill();
-    
-    // Dessiner le contour extérieur pour toutes les tuiles
     ctx.strokeStyle = 'cyan';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // Ajouter une ligne de contour intérieure pour la tuile spéciale (état 3)
     if (state === 3) {
         ctx.beginPath();
         for (let i = 0; i < 6; i++) {
             const angle = (Math.PI / 3) * i;
-            const innerSize = size * 0.85; // Ajustez cette valeur pour modifier la taille du contour intérieur
+            const innerSize = size * 0.85;
             const hx = x + innerSize * Math.cos(angle);
             const hy = y + innerSize * Math.sin(angle);
             if (i === 0) ctx.moveTo(hx, hy);
@@ -1057,7 +1138,47 @@ function drawHexagon(ctx, x, y, size, state) {
         ctx.lineWidth = 1.5;
         ctx.stroke();
     }
-	
+
+    // Pour les états 1 et 2, ajouter une couche plus claire par-dessus
+    if (state === 1 || state === 2) {
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = (Math.PI / 3) * i;
+            const hx = x + innerSize * Math.cos(angle) - offset;
+            const hy = y + innerSize * Math.sin(angle) - offset;
+            if (i === 0) ctx.moveTo(hx, hy);
+            else ctx.lineTo(hx, hy);
+        }
+        ctx.closePath();
+
+        if (state === 1) {
+            const gradient = ctx.createLinearGradient(
+                x + innerSize * Math.cos(Math.PI / 6) - offset,
+                y + innerSize * Math.sin(Math.PI / 6) - offset,
+                x + innerSize * Math.cos(Math.PI + Math.PI / 6) - offset,
+                y + innerSize * Math.sin(Math.PI + Math.PI / 6) - offset
+            );
+            gradient.addColorStop(0, '#12d8ee');
+            gradient.addColorStop(1, '#ddfca0');
+            ctx.fillStyle = gradient;
+            ctx.strokeStyle = '#12d8ee';
+        } else if (state === 2) {
+            const gradient = ctx.createLinearGradient(
+                x + innerSize * Math.cos(Math.PI / 6) - offset,
+                y + innerSize * Math.sin(Math.PI / 6) - offset,
+                x + innerSize * Math.cos(Math.PI + Math.PI / 6) - offset,
+                y + innerSize * Math.sin(Math.PI + Math.PI / 6) - offset
+            );
+            gradient.addColorStop(0, '#b74dd4');
+            gradient.addColorStop(1, '#5e8bb5');
+            ctx.fillStyle = gradient;
+            ctx.strokeStyle = '#b74dd4';
+        }
+        
+        ctx.fill();
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+    }
 }
 
 function createHexagonElement(x, y, size, state, index, isNeutral = false) {
@@ -1123,12 +1244,13 @@ function createHexagonElement(x, y, size, state, index, isNeutral = false) {
 
 
 function drawGrid() {
-	console.log("Entering drawGrid");
     console.log("Current level:", currentLevel);
-    console.log("Tiles:", tiles);
 	
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     hexagonContainer.innerHTML = '';
+	
+	// Dessiner le Chemin
+	createPathImage();
     
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2 - 10 ;
@@ -1160,10 +1282,10 @@ function blinkGrid() {
     victorySound.currentTime = 0;
     victorySound.play();    
 
-    const maxBlinks = 4;
+    const maxBlinks = 6;
     let blinkCount = 0;
     let opacity = 0;
-    const maxOpacity = 0.9;
+    const maxOpacity = 0.8;
     const gridSize = isSmallGrid(currentLevel) ? SMALL_GRID_SIZE : LARGE_GRID_SIZE;
     const fadeSpeed = isSmallGrid(currentLevel) ? 0.2 : 0.09 * (gridSize / SMALL_GRID_SIZE);
     const hexagons = hexagonContainer.querySelectorAll('.hexagon');
@@ -1176,6 +1298,8 @@ function blinkGrid() {
           frontCtx.clearRect(0, 0, front.width, front.height);
           
           const state = tiles[hexagon.dataset.index].currentState;
+          // Assurer que la tuile est dessinée avec une opacité complète
+          frontCtx.globalAlpha = 1;
           drawHexagon(frontCtx, front.width / 2, front.height / 2, front.width / 2, state);
           drawVictoryHexagon(frontCtx, front.width / 2, front.height / 2, front.width / 2, opacity);
         });
@@ -1196,6 +1320,15 @@ function blinkGrid() {
 
         requestAnimationFrame(blink);
       } else {
+        // Redessiner une dernière fois la grille avec l'opacité normale
+        hexagons.forEach(hexagon => {
+          const front = hexagon.children[0];
+          const frontCtx = front.getContext('2d');
+          frontCtx.clearRect(0, 0, front.width, front.height);
+          const state = tiles[hexagon.dataset.index].currentState;
+          frontCtx.globalAlpha = 1;
+          drawHexagon(frontCtx, front.width / 2, front.height / 2, front.width / 2, state);
+        });
         resolve();
       }
     }
@@ -1302,6 +1435,7 @@ function showTutorialImage(imageName) {
 
 function initLevel(level) {
     return new Promise(async (resolve) => {
+		resetCharacterPosition();
 		stopResetHint(); // Arrêter l'animation
         hasFirstClick = false;
 		isLevelTransition = false;
@@ -1347,6 +1481,7 @@ function initLevel(level) {
         updateMovesDisplay();
         updateStarsDisplay();
         updateElementsVisibility();
+		updateInstructionVisibility();
 		setButtonsEnabled(true);
         
 		if (level !== 0 && level !== 'random') {
@@ -1917,6 +2052,29 @@ function animateRotation(tileIndex) {
 function drawLevelText() {
     const centerX = canvas.width / 2;
     
+    if (currentLevel === 0) {
+        // Style spécifique pour le titre "UNTILE" comme dans l'index
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        const titleY = -5;
+		
+        // Texte principal en blanc
+        ctx.fillStyle = 'white';
+        ctx.font = '50px Blouse';
+        ctx.fillText('UNTILE', centerX, titleY);
+        
+        // Ajouter le text-shadow comme dans le CSS de l'index
+        ctx.shadowColor = 'rgba(0, 255, 255, 0.7)';
+        ctx.shadowBlur = 30;
+        ctx.fillText('UNTILE', centerX, titleY);
+        
+        // Réinitialiser les effets d'ombre pour ne pas affecter le reste
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = 'transparent';
+        
+        return;
+    }
+
     // Afficher le numéro du niveau ou "Random Level"
     ctx.fillStyle = 'white';
     ctx.font = '18px Blouse';
@@ -1924,13 +2082,13 @@ function drawLevelText() {
     ctx.textBaseline = 'top';
     
     if (currentLevel === 'random') {
-        ctx.fillText('Random Level', centerX, 10);
+        ctx.fillText('Random Level', centerX, 18);
     } else {
         const worlds = getWorldInfo();
         const currentWorldNum = levels[currentLevel].world;
         const worldName = worlds[currentWorldNum].name;
         const relativeLevel = currentLevel - worlds[currentWorldNum].startLevel + 1;
-        ctx.fillText(`${worldName} - Level ${relativeLevel}`, centerX, 13);
+        ctx.fillText(`${worldName} - Level ${relativeLevel}`, centerX, 18);
     }
     
     // Afficher la difficulté
@@ -2369,6 +2527,8 @@ function showCongratulationsMessage(level, starsEarned) {
 		const hintButton = document.getElementById('hint-btn');
         const resetButton = document.getElementById('reset-btn');
 		const homeButton = document.getElementById('home-button');
+		const pathContainer = document.getElementById('path-container');
+		const instructionElement = document.getElementById('instruction'); 
 		const BUTTON_WIDTH = 140;
 		const BUTTON_SPACING = 20; 
         
@@ -2380,6 +2540,9 @@ function showCongratulationsMessage(level, starsEarned) {
             homeButton.style.display = 'none';
             homeButton.style.pointerEvents = 'none';
         }
+		if (pathContainer) pathContainer.style.display = 'none';
+		if (instructionElement) instructionElement.style.display = 'none'; 
+
 		
         let opacity = 0;
         let animationComplete = false;
@@ -2391,7 +2554,7 @@ function showCongratulationsMessage(level, starsEarned) {
         function drawMessage() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.save();
-            ctx.fillStyle = `rgba(0, 10, 20, ${opacity * 0.3})`;
+            ctx.fillStyle = `rgba(0, 10, 20, ${opacity * 0})`;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.restore();
 
@@ -2602,6 +2765,8 @@ function showCongratulationsMessage(level, starsEarned) {
 					homeButton.style.display = 'block';
 					homeButton.style.pointerEvents = 'auto';
 				}
+				if (pathContainer) pathContainer.style.display = 'block';
+				if (instructionElement) instructionElement.style.display = 'block';
 			}
 		}
 
@@ -2643,6 +2808,406 @@ function drawVictoryHexagon(ctx, x, y, size, opacity = 1) {
   ctx.restore();
 }
 
+
+// Animation d'explosion de la grille terminée 
+
+function createExplosionEffect(hexagonData) {
+    return new Promise(resolve => {
+        const explosionCanvas = document.createElement('canvas');
+        const gameContainer = document.getElementById('game-container');
+        const gameRect = gameContainer.getBoundingClientRect();
+        
+        explosionCanvas.width = gameRect.width;
+        explosionCanvas.height = gameRect.height;
+        explosionCanvas.style.position = 'absolute';
+        explosionCanvas.style.top = '0';
+        explosionCanvas.style.left = '0';
+        explosionCanvas.style.pointerEvents = 'none';
+        explosionCanvas.style.zIndex = '1000';
+        gameContainer.appendChild(explosionCanvas);
+
+        const ctx = explosionCanvas.getContext('2d');
+        const particles = [];
+        const startTime = Date.now();
+        const duration = 1500;
+
+        function easeOutExpo(x) {
+            return x === 1 ? 1 : 1 - Math.pow(2, -10 * x);
+        }
+
+        function easeOutBack(x) {
+            const c1 = 1.70158;
+            const c3 = c1 + 1;
+            return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+        }
+
+        function drawHexagonParticle(ctx, particle) {
+            ctx.save();
+            ctx.translate(particle.x, particle.y);
+            ctx.rotate(particle.rotation);
+            ctx.scale(particle.scale * particle.depthScale, particle.scale * particle.depthScale);
+            
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const angle = (Math.PI / 3) * i;
+                const hx = particle.size * Math.cos(angle);
+                const hy = particle.size * Math.sin(angle);
+                if (i === 0) ctx.moveTo(hx, hy);
+                else ctx.lineTo(hx, hy);
+            }
+            ctx.closePath();
+
+            const gradient = ctx.createLinearGradient(
+                -particle.size, -particle.size, 
+                particle.size, particle.size
+            );
+
+            if (particle.state === 1) {
+                gradient.addColorStop(0, `rgba(18, 216, 238, ${particle.opacity})`);
+                gradient.addColorStop(1, `rgba(221, 252, 160, ${particle.opacity})`);
+            } else if (particle.state === 2) {
+                gradient.addColorStop(0, `rgba(183, 77, 212, ${particle.opacity})`);
+                gradient.addColorStop(1, `rgba(94, 139, 181, ${particle.opacity})`);
+            } else {
+                gradient.addColorStop(0, `rgba(16, 16, 16, ${particle.opacity})`);
+                gradient.addColorStop(1, `rgba(16, 16, 16, ${particle.opacity})`);
+            }
+
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            ctx.strokeStyle = `rgba(0, 255, 255, ${particle.opacity})`;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Créer les particules
+        hexagonData.forEach(({rect, state}) => {
+            const x = rect.left - gameRect.left + rect.width / 2;
+            const y = rect.top - gameRect.top + rect.height / 2;
+            
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 300 + Math.random() * 400; // Distance variable
+            const speed = 15 + Math.random() * 10;
+            
+            // Certaines particules auront un effet de profondeur
+            const hasDepthEffect = Math.random() < 0.5;
+            const depthScaleRange = hasDepthEffect ? 0.5 + Math.random() * 1.5 : 1;
+            
+            particles.push({
+                x,
+                y,
+                startX: x,
+                startY: y,
+                targetX: x + Math.cos(angle) * distance,
+                targetY: y + Math.sin(angle) * distance,
+                rotation: Math.random() * Math.PI * 2,
+                rotationSpeed: (Math.random() - 0.5) * 0.3,
+                state: state,
+                size: rect.width / 2,
+                scale: 1,
+                opacity: 1,
+                speed: speed,
+                depthScale: depthScaleRange,
+                depthPhase: Math.random() * Math.PI * 2, // Phase aléatoire pour l'oscillation de profondeur
+                depthSpeed: 0.05 + Math.random() * 0.05
+            });
+        });
+
+        function animate() {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+
+            if (progress < 1) {
+                ctx.clearRect(0, 0, explosionCanvas.width, explosionCanvas.height);
+
+                particles.forEach(particle => {
+                    // Mouvement explosif avec easing
+                    const moveProgress = easeOutExpo(progress);
+                    particle.x = particle.startX + (particle.targetX - particle.startX) * moveProgress;
+                    particle.y = particle.startY + (particle.targetY - particle.startY) * moveProgress;
+                    
+                    // Rotation avec accélération initiale
+                    particle.rotation += particle.rotationSpeed * (1 - progress);
+                    
+                    // Effet de profondeur oscillant
+                    const depthOffset = Math.sin(progress * 10 + particle.depthPhase) * 0.2;
+                    particle.scale = Math.max(0.2, 1 - (progress * 0.8 + depthOffset));
+                    
+                    // Opacité qui diminue plus rapidement à la fin
+                    particle.opacity = Math.max(0, 1 - easeOutBack(progress));
+
+                    drawHexagonParticle(ctx, particle);
+                });
+
+                requestAnimationFrame(animate);
+            } else {
+                explosionCanvas.remove();
+                resolve();
+            }
+        }
+
+        animate();
+    });
+}
+// Cette fonction aide à créer des vecteurs de vélocité pour une explosion plus naturelle
+function createExplosionVelocity(strength) {
+    const angle = Math.random() * Math.PI * 2;
+    const magnitude = Math.random() * strength;
+    return {
+        x: Math.cos(angle) * magnitude,
+        y: Math.sin(angle) * magnitude
+    };
+}
+
+
+// Fenêtre de félicitations de fin de monde
+
+// Ajout de la fonction pour dessiner un petit hexagone
+function drawProgressHexagon(ctx, x, y, filled, time) {  // Ajouter le paramètre time
+    const size = 15;
+    
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i;
+        const hx = x + size * Math.cos(angle);
+        const hy = y + size * Math.sin(angle);
+        if (i === 0) ctx.moveTo(hx, hy);
+        else ctx.lineTo(hx, hy);
+    }
+    ctx.closePath();
+    
+    if (filled) {
+        // Faire osciller l'opacité entre 0.7 et 1
+        const opacity = 0.7 + (Math.sin(time * 2) + 1) / 2 * 0.3;
+        ctx.fillStyle = `rgba(221, 199, 110, ${opacity})`; // Utiliser #DDC76E en rgba
+        ctx.fill();
+    }
+    
+    ctx.strokeStyle = '#DDC76E';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+}
+
+// Fonction pour vérifier si un monde vient d'être terminé
+function isWorldCompleted(currentLevel) {
+    const worlds = getWorldInfo();
+    const currentWorldNum = levels[currentLevel].world;
+    const currentWorld = worlds[currentWorldNum];
+    
+    // Si c'est le dernier niveau du monde
+    if (currentLevel === currentWorld.endLevel) {
+        // Vérifier si tous les niveaux du monde sont complétés
+        for (let level = currentWorld.startLevel; level <= currentWorld.endLevel; level++) {
+            if ((gameProgress.starsPerLevel[level] || 0) === 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+    return false;
+}
+
+// Fonction pour afficher la fenêtre de félicitations de fin de monde
+
+function showWorldCompletionMessage(worldNum) {
+    return new Promise(resolve => {
+        const movesDisplay = document.getElementById('moves-display');
+        const undoButton = document.getElementById('undo-btn');
+        const hintButton = document.getElementById('hint-btn');
+        const resetButton = document.getElementById('reset-btn');
+        const homeButton = document.getElementById('home-button');
+        const pathContainer = document.getElementById('path-container');
+        const instructionElement = document.getElementById('instruction');
+        
+        [movesDisplay, undoButton, hintButton, resetButton, homeButton, pathContainer, instructionElement]
+            .forEach(el => { if (el) el.style.display = 'none'; });
+        
+        let opacity = 0;
+        let animationComplete = false;
+        let animationId;
+        let canClick = false;
+        let animTime = 0;
+        let rotation = 0;
+		let textPulseTime = 0;
+		const GOLDEN_COLOR = '#DDC76E';
+		const centerY = canvas.height / 2 + 40;
+        
+        const character = document.createElement('img');
+        character.src = 'anim-static.gif';
+        character.style.cssText = `
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            transform-origin: center;
+            left: calc(50% - 20px);
+            top: ${centerY - 30}px; // Centré verticalement avec les hexagones
+            transition: transform 0.1s ease-out;
+            z-index: 1001;
+        `;
+        document.body.appendChild(character);
+        
+		// Fonction d'oscillation du titre
+		function getGoldenOpacity(time) {
+            const minOpacity = 0.7;  // Opacité minimale
+            const maxOpacity = 1.0;  // Opacité maximale
+            const speed = 0.2;         // Vitesse de pulsation
+            
+            return minOpacity + (Math.sin(time * speed) + 1) / 2 * (maxOpacity - minOpacity);
+        }
+		
+        // Configuration des animations
+        const hexSize = 5;
+        const baseRadius = 20;
+        const radiusVariation = 50;
+        const numHexagons = 10;
+        const bounceSpeed = 0.2;
+        
+        function drawRotatingHexagons(ctx, centerX, centerY) {
+            // Utiliser la même fonction sinusoïdale que pour le saut
+            const oscillation = Math.abs(Math.sin(animTime * bounceSpeed));
+            const currentRadius = baseRadius + oscillation * radiusVariation;
+            
+            for (let i = 0; i < numHexagons; i++) {
+                const angle = (Math.PI * 2 * i / numHexagons) + rotation;
+                const x = centerX + Math.cos(angle) * currentRadius;
+                const y = (centerY -20 + Math.sin(angle) * currentRadius)-5;
+                
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(rotation * 2);
+                
+                ctx.beginPath();
+                for (let j = 0; j < 6; j++) {
+                    const hexAngle = (Math.PI * 2 * j / 6);
+                    const hx = Math.cos(hexAngle) * hexSize;
+                    const hy = Math.sin(hexAngle) * hexSize;
+                    if (j === 0) {
+                        ctx.moveTo(hx, hy);
+                    } else {
+                        ctx.lineTo(hx, hy);
+                    }
+                }
+                ctx.closePath();
+                
+                ctx.fillStyle = '#90fff9';
+                ctx.fill();
+
+                
+                ctx.restore();
+            }
+            
+            rotation += 0.01;
+        }
+        
+        function animateCharacter() {
+            const jumpHeight = 50;
+            const xAmplitude = 5;
+            
+            const oscillation = Math.abs(Math.sin(animTime * bounceSpeed));
+            const yOffset = oscillation * jumpHeight;
+            const xOffset = Math.sin(animTime * bounceSpeed * 1.5) * xAmplitude;
+            
+            character.style.transform = `
+                translateY(-${yOffset}px) 
+                translateX(${xOffset}px)
+                scale(${1 + (yOffset / 100)})
+            `;
+        }
+        
+        function drawMessage() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = `rgba(0, 10, 20, ${opacity * 0})`;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.textAlign = 'center';
+            
+            if (opacity >= 1) {
+                // Animation du texte avec gradient
+                textPulseTime += 0.05;  // Vitesse de l'animation
+                
+                // Créer le gradient doré
+                const gradient = ctx.createLinearGradient(
+                    canvas.width/2 - 150, 
+                    canvas.height/2 - 120,
+                    canvas.width/2 + 150,
+                    canvas.height/2 - 90
+                );
+                
+                // Positions du gradient qui varient avec le temps
+                const offset = (Math.sin(textPulseTime) + 1) / 2;
+                gradient.addColorStop(Math.max(0, offset - 0.3), '#DDC76E');  
+                gradient.addColorStop(offset, '#fffcd6');      
+                gradient.addColorStop(Math.min(1, offset + 0.3), '#DDC76E');  
+                
+                ctx.fillStyle = gradient;
+                const worldName = getWorldInfo()[worldNum].name;
+                ctx.font = 'italic 22px Blouse';
+                ctx.fillText(`World "${worldName}"`, canvas.width / 2, canvas.height / 2 - 120);
+                ctx.fillText('accomplished', canvas.width / 2, canvas.height / 2 - 90);
+				
+                // Incrémenter le temps d'animation
+                animTime += 0.1;
+                
+                drawRotatingHexagons(ctx, canvas.width / 2, canvas.height / 2 + 40);
+                animateCharacter();
+				
+				// Calculer les positions pour centrer la frise
+                const spacing = 30; // Nouvel espacement entre les hexagones
+                const totalWidth = 8 * spacing;
+                const startX = (canvas.width - totalWidth) / 2 + 20;
+                const y = canvas.height - 120;
+                
+                for (let i = 0; i < 8; i++) {
+                    const x = startX + (i * spacing); 
+                    const isCompleted = i < worldNum;
+                    drawProgressHexagon(ctx, x, y, isCompleted, animTime);
+                }
+            }
+            
+            // Ajouter un texte "Click to continue" une fois l'animation terminée
+            if (animationComplete) {
+				ctx.fillStyle = 'white';
+                ctx.font = 'italic 11px Blouse';
+                ctx.fillText('Click to continue', canvas.width / 2, canvas.height / 2 + 170);
+            }
+            
+            if (opacity < 1) {
+                opacity += 0.05;
+                animationId = requestAnimationFrame(drawMessage);
+            } else if (!animationComplete) {
+                animationComplete = true;
+                canClick = true;
+                animationId = requestAnimationFrame(drawMessage);
+            } else {
+                animationId = requestAnimationFrame(drawMessage);
+            }
+        }
+        
+        function cleanup() {
+            document.removeEventListener('click', handleClick);
+            cancelAnimationFrame(animationId);
+            character.remove();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            [movesDisplay, undoButton, hintButton, resetButton, homeButton, pathContainer, instructionElement]
+                .forEach(el => { if (el && el !== hintButton || currentLevel >= 5) el.style.display = 'block'; });
+        }
+        
+        function handleClick() {
+            if (canClick) {
+                cleanup();
+                resolve();
+            }
+        }
+        
+        document.addEventListener('click', handleClick);
+        animationId = requestAnimationFrame(drawMessage);
+    });
+}
+
+
+
 function showFinalVictoryScreen() {
     return new Promise(resolve => {
         // Masquer les éléments existants
@@ -2653,7 +3218,9 @@ function showFinalVictoryScreen() {
         document.getElementById('level-select').style.display = 'none';
         document.getElementById('stars-display').style.display = 'none';
         document.getElementById('hexagon-container').style.display = 'none';
-        
+        const pathContainer = document.getElementById('path-container');
+        if (pathContainer) pathContainer.style.display = 'none';
+		
         setButtonsEnabled(false);
 
         let rotation = 0;
@@ -2700,6 +3267,7 @@ function showFinalVictoryScreen() {
             document.getElementById('hint-btn').style.display = 'block';
             document.getElementById('reset-btn').style.display = 'block';
             document.getElementById('undo-btn').style.display = 'block';
+			pathContainer.style.display = 'block'
             
             // Réinitialiser les états importants
             isLevelTransition = false;
@@ -2730,7 +3298,7 @@ function showFinalVictoryScreen() {
             ctx.font = 'italic bold 30px Blouse, sans-serif';
             ctx.fillText('Congratulations!', centerX, 40);
             ctx.font = 'italic bold 24px Blouse, sans-serif';
-            ctx.fillText('You finished Untile v0.9.1b', centerX, 80);
+            ctx.fillText('You finished Untile v0.9.7b', centerX, 80);
 
             ctx.save();
             ctx.translate(centerX, centerY);
@@ -2806,107 +3374,130 @@ function showFinalVictoryScreen() {
 
 
 async function checkWinCondition() {
-    if (tiles.every(tile => tile.currentState === 0 || tile.currentState === 3 || tile.currentState === 4 || tile.currentState === 5 || tile.currentState === 6 || tile.currentState === 7)) {
+    if (tiles.every(tile => tile.currentState === 0 || tile.currentState === 3 || 
+        tile.currentState === 4 || tile.currentState === 5 || tile.currentState === 6 || 
+        tile.currentState === 7)) {
+        
         isTransitioning = true;
         isLevelTransition = true;
         setButtonsEnabled(false);
-		
+        
         showHints = false;
         if (hintAnimationFrame) {
             cancelAnimationFrame(hintAnimationFrame);
             hintAnimationFrame = null;
-        }		
+        }       
 
         try {
             await new Promise(resolve => setTimeout(resolve, 500));
             await blinkGrid();
             
-            await new Promise(resolve => setTimeout(resolve, 100));
+            // Capturer les positions immédiatement après le blink
+            const hexagons = Array.from(hexagonContainer.querySelectorAll('.hexagon'));
+            const hexagonData = hexagons.map(hexagon => {
+                const rect = hexagon.getBoundingClientRect();
+                return {
+                    element: hexagon,
+                    rect: rect,
+                    state: parseInt(hexagon.dataset.state)
+                };
+            });
+
+            // Démarrer l'explosion immédiatement
+            hexagonContainer.style.display = 'none';
+            await createExplosionEffect(hexagonData);
+            
+            moveCharacterToVictoryPosition();
+            await new Promise(resolve => setTimeout(resolve, 1500));
             
             let starsEarned = currentLevel === 'random' ? 0 : calculateStarsEarned();
             
-            hexagonContainer.style.display = 'none';
-            const result = await showCongratulationsMessage(currentLevel === 'random' ? 'Random' : currentLevel + 1, starsEarned);
+            const result = await showCongratulationsMessage(
+                currentLevel === 'random' ? 'Random' : currentLevel + 1, 
+                starsEarned
+            );
             
-			if (cleanupCongratulationsMessage) {
+            if (cleanupCongratulationsMessage) {
                 cleanupCongratulationsMessage();
                 cleanupCongratulationsMessage = null;
             }
-			
-			// Nettoyer le canvas et le conteneur d'hexagones avant de passer au niveau suivant
+            
+            // Nettoyer le canvas et le conteneur d'hexagones avant de passer au niveau suivant
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             hexagonContainer.innerHTML = '';
-			
-			if (result.action === 'next') {
-			// Vérifier si le niveau était déjà complété avec 3 étoiles
-			const wasAlreadyPerfect = (gameProgress.starsPerLevel[currentLevel] || 0) === 3;
-			
-			if (wasAlreadyPerfect) {
-				// Si le niveau était déjà parfait, on se contente d'afficher le niveau suivant
-				// sans mettre à jour les étoiles ou autre
-				currentLevel++;
-				await initLevel(currentLevel);
-			} else {
-				// Comportement normal pour un niveau non-parfait
-				const starsEarned = calculateStarsEarned();
-				updateLevelStars(currentLevel, starsEarned);
-				
-				// Pour le bouton continue
-				const nextLevelToPlay = getNextLevelToPlay();
-				updateContinueHexButton(nextLevelToPlay);
-				
-				if (currentLevel !== 'random') {
-					currentLevel++; // S'assurer que cette ligne est exécutée
-					saveProgress();
-					updateLevelSelector(currentLevel);
-				}
-				
-				updateElementsVisibility();
-				updateInstructionVisibility();
-
-				const allLevelsCompleted = levels.every((level, index) => {
-					return (gameProgress.starsPerLevel[index] || 0) > 0;
-				});
-
-				if (allLevelsCompleted && currentLevel >= levels.length) {
-					const result = await showFinalVictoryScreen();
-					if (result === 'close') {
-						showHomeScreen();
-					}
-				} else {
-					if (currentLevel === 5) {
-                            await showTutorialImage('Unlock0.jpg');
-                        }
-					if (currentLevel === 20) {
-						await showTutorialImage('Unlock.jpg');
-					} else if (currentLevel === 30) {
-						await showTutorialImage('TwoRows.jpg');
-					} else if (currentLevel === 40) {  
-						await showTutorialImage('Lines.jpg');
-					} else if (currentLevel === 60) { 
-						await showTutorialImage('Rotation.jpg');
-					}
-					
-					if (currentLevel < levels.length || currentLevel === 'random') {
-						hexagonContainer.style.display = '';
-						await initLevel(currentLevel);
-						await animateStarsToCounter(starsEarned);
-					}
-				}
+            
+            if (result.action === 'next') {
+                // Vérifier si le niveau était déjà complété avec 3 étoiles
+                const wasAlreadyPerfect = (gameProgress.starsPerLevel[currentLevel] || 0) === 3;
                 
-                updateStarsDisplay();
-			}
+                if (wasAlreadyPerfect) {
+                    currentLevel++;
+                    await initLevel(currentLevel);
+                } else {
+                    const starsEarned = calculateStarsEarned();
+                    updateLevelStars(currentLevel, starsEarned);
+                    
+                    const nextLevelToPlay = getNextLevelToPlay();
+                    updateContinueHexButton(nextLevelToPlay);
+                    
+                    if (currentLevel !== 'random') {
+                        // Vérifier si un monde vient d'être complété
+                        if (isWorldCompleted(currentLevel)) {
+                            const worldNum = levels[currentLevel].world;
+                            await showWorldCompletionMessage(worldNum);
+                        }
 
-			} else if (result.action === 'retry') {
-				hexagonContainer.style.display = '';
-				if (currentLevel === 'random') {
-					await resetCurrentRandomLevel();
-					updateElementsVisibility(); // Ajout de cette ligne
-				} else {
-					await initLevel(currentLevel);
-				}
+                        currentLevel++;
+                        saveProgress();
+                        updateLevelSelector(currentLevel);
+                    }
+                    
+                    updateElementsVisibility();
+                    updateInstructionVisibility();
+
+                    const allLevelsCompleted = levels.every((level, index) => {
+                        return (gameProgress.starsPerLevel[index] || 0) > 0;
+                    });
+
+                    if (allLevelsCompleted && currentLevel >= levels.length) {
+                        const result = await showFinalVictoryScreen();
+                        if (result === 'close') {
+                            showHomeScreen();
+                        }
+                    } else {
+                        if (currentLevel === 5) {
+                            await showTutorialImage('Unlock0.jpg');
+                        } else if (currentLevel === 20) {
+                            await showTutorialImage('Unlock.jpg');
+                        } else if (currentLevel === 30) {
+                            await showTutorialImage('TwoRows.jpg');
+                        } else if (currentLevel === 40) {  
+                            await showTutorialImage('Lines.jpg');
+                        } else if (currentLevel === 60) { 
+                            await showTutorialImage('Rotation.jpg');
+                        }
+                        
+                        if (currentLevel < levels.length || currentLevel === 'random') {
+                            hexagonContainer.style.display = '';
+                            await initLevel(currentLevel);
+                            await animateStarsToCounter(starsEarned);
+                        }
+                    }
+                    
+                    updateStarsDisplay();
+                }
+            } else if (result.action === 'retry') {
+                hexagonContainer.style.display = '';
+                if (currentLevel === 'random') {
+                    await resetCurrentRandomLevel();
+					updateInstructionVisibility()
+                    updateElementsVisibility();
+                } else {
+                    await initLevel(currentLevel);
+                }
             } else if (result.action === 'newRandom') {
                 hexagonContainer.style.display = '';
+				updateInstructionVisibility()
                 await generateNewRandomLevel(storedRandomLevel.config);
                 await animateStarsToCounter(starsEarned);
             }
@@ -2919,6 +3510,7 @@ async function checkWinCondition() {
     }
 }
 
+
 function calculateStarsEarned() {
     const movesUsed = levels[currentLevel].optimalMoves - remainingMoves;
     if (movesUsed <= levels[currentLevel].optimalMoves) return 3;
@@ -2926,10 +3518,73 @@ function calculateStarsEarned() {
     return 1;
 }
 
-// Affichage du score
+// Affichage du score : nombre d'étoiles et mini-frise des mondes 
 function updateStarsDisplay() {
     const starsDisplay = document.getElementById('stars-display');
-    starsDisplay.textContent = `${totalStars} / ${maxStars} ★`;
+    starsDisplay.innerHTML = `<div>${totalStars} / ${maxStars} ★</div>`;
+
+    // Ajouter le canvas pour la progression des mondes
+    if (!document.getElementById('worlds-progress-canvas')) {
+        const progressCanvas = document.createElement('canvas');
+        progressCanvas.id = 'worlds-progress-canvas';
+        starsDisplay.appendChild(progressCanvas);
+    }
+
+    // Dessiner la progression des mondes
+    const progressCanvas = document.getElementById('worlds-progress-canvas');
+    progressCanvas.width = 100;
+    progressCanvas.height = 15;
+    const ctx = progressCanvas.getContext('2d');
+    ctx.clearRect(0, 0, progressCanvas.width, progressCanvas.height);
+
+    // Fonction pour dessiner un petit hexagone
+    function drawSmallProgressHexagon(ctx, x, y, filled) {
+        const size = 5;
+        
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = (Math.PI / 3) * i;
+            const hx = x + size * Math.cos(angle);
+            const hy = y + size * Math.sin(angle);
+            if (i === 0) ctx.moveTo(hx, hy);
+            else ctx.lineTo(hx, hy);
+        }
+        ctx.closePath();
+        
+        if (filled) {
+            ctx.fillStyle = '#DDC76E';
+            ctx.fill();
+        }
+        
+        ctx.strokeStyle = '#DDC76E';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    // Calculer le nombre de mondes complétés
+    const worlds = getWorldInfo();
+    const completedWorlds = Object.entries(worlds)
+        .filter(([worldNum, world]) => {
+            // Vérifier si tous les niveaux du monde sont complétés
+            for (let level = world.startLevel; level <= world.endLevel; level++) {
+                if ((gameProgress.starsPerLevel[level] || 0) === 0) {
+                    return false;
+                }
+            }
+            return true;
+        })
+        .length;
+
+    // Dessiner la barre de progression
+    const spacing = 10; // Espacement entre les hexagones
+    const startX = 15; // Position de départ
+    const y = progressCanvas.height / 2;
+
+    for (let i = 0; i < 8; i++) {
+        const x = startX + (i * spacing);
+        const isCompleted = i < completedWorlds;
+        drawSmallProgressHexagon(ctx, x, y, isCompleted);
+    }
 }
 
 //Gestion de l'UI au premier niveau 
@@ -2937,6 +3592,7 @@ function updateElementsVisibility() {
     const isFirstLevel = currentLevel === 0;
     const showHintButton = currentLevel >= 5 || currentLevel === 'random';
     const homeScreenVisible = document.getElementById('home-screen').style.display === 'block';
+	const pathContainer = document.getElementById('path-container');
 
     if (!homeScreenVisible) {
         document.getElementById('home-button').style.display = showHintButton ? 'block' : 'none';
@@ -2945,6 +3601,7 @@ function updateElementsVisibility() {
         document.getElementById('hint-btn').style.display = showHintButton ? 'block' : 'none';
         document.getElementById('reset-btn').style.display = isFirstLevel ? 'none' : 'block';
         document.getElementById('moves-display').style.display = isFirstLevel ? 'none' : 'block';
+		if (pathContainer) pathContainer.style.display = 'block';
     } else {
         // Si l'écran d'accueil est visible, on ne montre que le compteur d'étoiles
         document.getElementById('stars-display').style.display = 'block';
@@ -2953,6 +3610,7 @@ function updateElementsVisibility() {
         document.getElementById('hint-btn').style.display = 'none';
         document.getElementById('reset-btn').style.display = 'none';
         document.getElementById('moves-display').style.display = 'none';
+		if (pathContainer) pathContainer.style.display = 'none';
     }
 }
 
@@ -3001,6 +3659,7 @@ function resetCurrentLevel() {
 document.getElementById('undo-btn').addEventListener('mouseup', function(e) {
     if (e.target.style.pointerEvents === 'none') return;
     this.src = 'undo-button.png';
+	console.log("Undo button clicked");
     if (history.length > 0) {
         tiles = history.pop();
         drawGrid();
@@ -3016,6 +3675,7 @@ document.getElementById('undo-btn').addEventListener('mousedown', function(e) {
 document.getElementById('reset-btn').addEventListener('mouseup', function(e) {
     if (e.target.style.pointerEvents === 'none') return;
     this.src = 'restart-button.png';
+	console.log("Reset button clicked");
 	showHints = false;
     if (hintAnimationFrame) {
         cancelAnimationFrame(hintAnimationFrame);
@@ -3043,6 +3703,7 @@ document.getElementById('reset-btn').addEventListener('mouseout', function() {
 document.getElementById('hint-btn').addEventListener('mouseup', function(e) {
     if (e.target.style.pointerEvents === 'none' || !isHintButtonActive) return;
     this.src = 'hint-button.png';
+	console.log("Hint button clicked");
     
     if (currentLevel === 'random' || currentLevel >= 4) {
         if (!showHints) {
@@ -3285,6 +3946,7 @@ function generateNewRandomLevel(config) {
             }));
             remainingMoves = config.clicks;
             history = [];
+			resetCharacterPosition();
             drawGrid();
             updateMovesDisplay();
             updateStarsDisplay();
@@ -3323,6 +3985,7 @@ function resetCurrentRandomLevel() {
             }));
             remainingMoves = storedRandomLevel.config.clicks;
             history = [];
+			resetCharacterPosition();
             drawGrid();
             updateMovesDisplay();
             resolve();
@@ -3333,65 +3996,6 @@ function resetCurrentRandomLevel() {
     });
 }
 
-
-
-
-// Système de sauvegarde locale 
-
-// Définir les données à sauvegarder
-const gameProgress = {
-    currentLevel: 0,
-    totalStars: 0,
-    starsPerLevel: {}, // Pour stocker les étoiles gagnées par niveau
-    hasSeenTutorial: {} // Pour suivre les tutoriels déjà vus
-};
-
-// Fonction pour sauvegarder la progression
-function saveProgress() {
-    const progressData = {
-        currentLevel: currentLevel,
-        totalStars: totalStars,
-        starsPerLevel: gameProgress.starsPerLevel,
-        hasSeenTutorial: gameProgress.hasSeenTutorial
-    };
-    localStorage.setItem('untileProgress', JSON.stringify(progressData));
-}
-
-// Fonction pour charger la progression
-function loadProgress() {
-    const savedProgress = localStorage.getItem('untileProgress');
-    if (savedProgress) {
-        const progressData = JSON.parse(savedProgress);
-        currentLevel = progressData.currentLevel;
-        totalStars = progressData.totalStars;
-        gameProgress.starsPerLevel = progressData.starsPerLevel || {};
-        gameProgress.hasSeenTutorial = progressData.hasSeenTutorial || {};
-        return true;
-    }
-    return false;
-}
-
-// Fonction pour mettre à jour les étoiles d'un niveau
-function updateLevelStars(level, stars) {
-    const currentStars = gameProgress.starsPerLevel[level] || 0;
-    if (stars > currentStars) {
-        gameProgress.starsPerLevel[level] = stars;
-        // Le total est recalculé à partir de tous les niveaux
-        totalStars = Object.entries(gameProgress.starsPerLevel)
-            .filter(([level, _]) => !isNaN(parseInt(level))) // Exclure les niveaux random
-            .reduce((sum, [_, stars]) => sum + stars, 0);
-        saveProgress();
-    }
-}
-
-// Ajouter un bouton pour réinitialiser la progression (optionnel)
-function resetProgress() {
-    if (confirm("Are you sure you want to reset your progress? This action is irreversible.")) {
-        localStorage.removeItem('untileProgress');
-        // Recharger la page immédiatement après la réinitialisation
-        window.location.reload();
-    }
-}
 
 // Gestion de la fenêtre de sélection des niveaux
 document.getElementById('levels-button').addEventListener('click', () => {
@@ -3415,8 +4019,19 @@ function showLevelsModal(fromHome = false, fromLevel = false) {
     const modal = document.getElementById('levels-modal');
     const worldsContainer = document.getElementById('worlds-container');
     worldsContainer.innerHTML = '';
+    
+    // Masquer le personnage et l'image path quand la modale est ouverte
+    const character = document.getElementById('character-container');
+    const pathContainer = document.getElementById('path-container');
+    if (character) character.style.display = 'none';
+    if (pathContainer) pathContainer.style.display = 'none';
 	
-	// Ajuster la largeur de la modale selon le device
+	// Effacer le canvas si on vient de la home
+    if (fromHome) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    
+    // Ajuster la largeur de la modale selon le device
     const modalContent = document.querySelector('.modal-content');
     if (isTouchDevice()) {
         modalContent.style.width = '80%';
@@ -3442,20 +4057,19 @@ function showLevelsModal(fromHome = false, fromLevel = false) {
         worldTitle.style.color = isUnlocked ? '#AAAAAA' : '#666';
         worldTitle.style.marginBottom = '15px';
         worldTitle.style.fontSize = '18px';
-		worldTitle.style.textAlign = 'center'; 
+        worldTitle.style.textAlign = 'center'; 
         worldSection.appendChild(worldTitle);
         
-		if (isUnlocked) {
-			const levelsGrid = document.createElement('div');
-			levelsGrid.style.display = 'grid';
-			// Adapter le nombre de colonnes selon le device
-			levelsGrid.style.gridTemplateColumns = isTouchDevice() ? 
-				'repeat(3, 1fr)' :  // 3 colonnes sur mobile
-				'repeat(5, 1fr)';   // 5 colonnes sur desktop
-			levelsGrid.style.gap = '15px';
-			levelsGrid.style.justifyContent = 'center';
-			levelsGrid.style.maxWidth = '600px';
-			levelsGrid.style.margin = '0 auto';
+        if (isUnlocked) {
+            const levelsGrid = document.createElement('div');
+            levelsGrid.style.display = 'grid';
+            levelsGrid.style.gridTemplateColumns = isTouchDevice() ? 
+                'repeat(3, 1fr)' :  // 3 colonnes sur mobile
+                'repeat(5, 1fr)';   // 5 colonnes sur desktop
+            levelsGrid.style.gap = '15px';
+            levelsGrid.style.justifyContent = 'center';
+            levelsGrid.style.maxWidth = '600px';
+            levelsGrid.style.margin = '0 auto';
             
             for (let i = world.startLevel; i <= world.endLevel; i++) {
                 const levelButton = createLevelButton(i);
@@ -3610,11 +4224,13 @@ function createRandomLevelButton(config, index) {
 function hideLevelsModal() {
     const modal = document.getElementById('levels-modal');
     modal.style.display = 'none';
+    const pathContainer = document.getElementById('path-container');
     
     if (openedFromHome) {
         showHomeScreen();
     } else if (openedFromLevel) {
-        // Ne rien faire, on revient au niveau en cours
+        document.getElementById('character-container').style.display = 'block';
+        if (pathContainer) pathContainer.style.display = 'block';
     }
     
     openedFromHome = false;
@@ -3654,7 +4270,11 @@ function showHomeScreen() {
     document.getElementById('undo-btn').style.display = 'none';
     document.getElementById('hint-btn').style.display = 'none';
     document.getElementById('reset-btn').style.display = 'none';
+	document.getElementById('character-container').style.display = 'none';
     
+    const pathContainer = document.getElementById('path-container');
+    if (pathContainer) pathContainer.style.display = 'none';
+	
     // Effacer le canvas pour masquer le titre du niveau et la difficulté
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
@@ -3666,6 +4286,10 @@ function hideHomeScreen() {
     // Réafficher les éléments du jeu
     document.getElementById('hexagon-container').style.display = 'block';
     document.getElementById('moves-display').style.display = 'block';
+	document.getElementById('character-container').style.display = 'block';
+	
+    const pathContainer = document.getElementById('path-container');
+    if (pathContainer) pathContainer.style.display = 'block';
     
     // Réafficher les boutons de contrôle seulement si on n'est pas au niveau 0
     if (currentLevel !== 0) {
@@ -3734,47 +4358,6 @@ function getNextLevelToPlay() {
     };
 }
 
-// Fonction pour changer le contenu du bouton continue de l'accueil
-function updateContinueButton(nextLevel) {
-    const continueBtn = document.getElementById('continue-btn');
-    const continueText = document.getElementById('continue-text');
-    const currentLevelText = document.getElementById('current-level-text');
-    const levelsButton = document.getElementById('levels-button');
-
-    if (nextLevel.type === 'new') {
-        continueText.textContent = 'Start Game';
-        currentLevelText.textContent = 'Tutorial - Level 1';
-        levelsButton.style.display = 'block'; // Montrer le bouton Levels
-        continueBtn.onclick = () => {
-            hideHomeScreen();
-            initLevel(0);
-        };
-    }
-    else if (nextLevel.type === 'completed') {
-        continueText.textContent = 'All Levels Completed!';
-        currentLevelText.textContent = 'Click to see all levels';
-        levelsButton.style.display = 'none'; // Cacher le bouton Levels car redondant
-        continueBtn.onclick = () => {
-            hideHomeScreen();
-            showLevelsModal();
-        };
-    }
-    else {
-        const worlds = getWorldInfo();
-        const worldNum = levels[nextLevel.level].world;
-        const worldName = worlds[worldNum].name;
-        const relativeLevel = getWorldRelativeLevel(nextLevel.level);
-        
-        continueText.textContent = 'Continue';
-        currentLevelText.textContent = `${worldName} - Level ${relativeLevel}`;
-        levelsButton.style.display = 'block'; // Montrer le bouton Levels
-        continueBtn.onclick = () => {
-            hideHomeScreen();
-            currentLevel = nextLevel.level;
-            initLevel(currentLevel);
-        };
-    }
-}
 
 // Fonction pour créer et gérer le bouton continue hexagonal
 function createContinueHexButton() {
@@ -4101,6 +4684,10 @@ function createLevelsHexButton() {
     });
 
 	hexButton.addEventListener('click', () => {
+		const character = document.getElementById('character-container');
+		if (character) {
+			character.style.display = 'none';
+		}
 		hideHomeScreen();
 		showLevelsModal(true);
 	});
@@ -4338,14 +4925,14 @@ function calculateGridSize() {
     const height = window.innerWidth;  // Inversé à cause de la rotation
     
     if (isTouchDevice()) {
-        // Sur mobile : 5 colonnes fixes
-        const cols = 5;
-        const rows = Math.ceil(height / verticalSpacing) + 2;
+        // Sur mobile : augmenter le nombre de colonnes fixes
+        const cols = 8;  // Augmenté de 5 à 8
+        const rows = Math.ceil(height / verticalSpacing) + 6;
         return { width, height, cols, rows, isMobile: true };
     } else {
-        // Sur desktop : calcul normal avec colonnes supplémentaires pour l'animation
-        const cols = Math.ceil(width / horizontalSpacing) + 6;
-        const rows = Math.ceil(height / verticalSpacing) + 2;
+        // Sur desktop : ajout de plus de colonnes supplémentaires pour l'animation
+        const cols = Math.ceil(width / horizontalSpacing) + 8;  // Augmenté de +3 à +8
+        const rows = Math.ceil(height / verticalSpacing) + 4;
         return { width, height, cols, rows, isMobile: false };
     }
 }
@@ -4368,19 +4955,16 @@ function generateBackgroundGrid() {
     
     gridContainer.innerHTML = '';
     
-    // Créer un groupe pour la rotation fixe
-    const rotatedGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     const centerX = window.innerWidth / 2;
     const centerY = window.innerHeight / 2;
     
-    // Appliquer la rotation à 90 degrés autour du centre
+    const rotatedGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     rotatedGroup.setAttribute('transform', 
-        `translate(${centerX}, ${centerY}) 
-         rotate(90) 
-         translate(${-centerY}, ${-centerX})`
+        `translate(${centerX - 300}, ${centerY - 300})  rotate(30)  translate(${-centerY}, ${-centerX})`
     );
     
     gridContainer.appendChild(rotatedGroup);
+   
     
     // Créer un groupe pour l'animation de défilement
     const animatedGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -4433,16 +5017,26 @@ function generateBackgroundGrid() {
     }
 
     // Animation de défilement
-    function animateBackground() {
-        animationOffset -= 0.2;
-        
-        if (Math.abs(animationOffset) >= dimensions.cols * horizontalSpacing) {
-            animationOffset = 0;
-        }
-        
-        animatedGroup.style.transform = `translateX(${animationOffset}px)`;
-        backgroundAnimationFrame = requestAnimationFrame(animateBackground);
-    }
+	function animateBackground() {
+		// Limiter la fréquence d'actualisation
+		if (!window.requestAnimationFrame) {
+			animationOffset -= 0.2;
+			if (Math.abs(animationOffset) >= dimensions.cols * horizontalSpacing) {
+				animationOffset = 0;
+			}
+			animatedGroup.style.transform = `translateX(${animationOffset}px)`;
+			setTimeout(animateBackground, 16);
+			return;
+		}
+		
+		// Utiliser transform3d pour la GPU acceleration
+		animationOffset -= 0.2;
+		if (Math.abs(animationOffset) >= dimensions.cols * horizontalSpacing) {
+			animationOffset = 0;
+		}
+		animatedGroup.style.transform = `translate3d(${animationOffset}px, 0, 0)`;
+		backgroundAnimationFrame = requestAnimationFrame(animateBackground);
+	}
 
     if (backgroundAnimationFrame) {
         cancelAnimationFrame(backgroundAnimationFrame);
@@ -4450,6 +5044,105 @@ function generateBackgroundGrid() {
     
     animateBackground();
 }
+
+// Chemin sous la grille
+
+function createPathImage() {
+    // Supprimer l'ancien path s'il existe
+    const oldPath = document.getElementById('path-container');
+    if (oldPath) {
+        oldPath.remove();
+    }
+
+    // Créer le conteneur pour l'image
+    const pathContainer = document.createElement('div');
+    pathContainer.id = 'path-container';
+    pathContainer.style.cssText = `
+        position: absolute;
+        z-index: -1;
+        pointer-events: none;
+        transform: translate(calc(-50% + 0px), 0) scale(0.8);
+        left: 50%;
+        top: ${canvas.height / 2 - 310}px;  
+    `;
+
+    // Créer l'image
+    const pathImage = document.createElement('img');
+    pathImage.src = 'path.png';
+    pathImage.style.cssText = `
+        width: auto;
+        height: auto;
+        display: block;
+    `;
+
+    pathContainer.appendChild(pathImage);
+    document.getElementById('game-container').appendChild(pathContainer);
+}
+
+// Animations du personnage
+
+// Fonction pour obtenir la position appropriée du personnage
+function getCharacterPosition(type = 'initial') {
+    const gridSize = isSmallGrid(currentLevel) ? 'small' : 'large';
+    return CHARACTER_POSITIONS[gridSize][type];
+}
+
+// Fonction pour déplacer le personnage
+function moveCharacterToPosition(position) {
+    const character = document.getElementById('character-container');
+    if (character) {
+        character.style.top = `${position.top}px`;
+        character.style.left = `${position.left}px`;
+    }
+}
+
+// Fonction mise à jour pour replacer le personnage
+function resetCharacterPosition() {
+    const character = document.getElementById('character-container');
+    const staticImg = document.getElementById('character-static');
+    const animatedImg = document.getElementById('character-animated');
+    
+    if (character) {
+        // Remettre l'image statique et cacher l'image animée
+        staticImg.style.display = 'block';
+        animatedImg.style.display = 'none';
+        
+        // Obtenir la position appropriée selon la taille de la grille
+        const position = getCharacterPosition('initial');
+        
+        character.style.transition = 'none';
+        character.style.top = `${position.top}px`;
+        character.style.left = `${position.left}px`;
+        character.style.opacity = '1';
+    }
+}
+
+// Fonction mise à jour pour déplacer le personnage à sa position de victoire
+function moveCharacterToVictoryPosition() {
+    const character = document.getElementById('character-container');
+    const staticImg = document.getElementById('character-static');
+    const animatedImg = document.getElementById('character-animated');
+    
+    if (character) {
+        // Changer les images
+        staticImg.style.display = 'none';
+        animatedImg.style.display = 'block';
+        
+        // Obtenir la position de victoire
+        const position = getCharacterPosition('victory');
+        
+        // Configurer l'animation
+        character.style.transition = `
+            top 1.5s cubic-bezier(0, 0, 0.9, 1),
+            left 1.5s cubic-bezier(0, 0, 0.9, 1),
+            opacity 0.1s linear 1.4s
+        `;
+        character.style.top = `${position.top}px`;
+        character.style.left = `${position.left}px`;
+        character.style.opacity = '0';
+    }
+}
+
 
 // Window.onload pour ajouter les écouteurs d'événements
 const originalOnload = window.onload;
