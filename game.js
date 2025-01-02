@@ -26,6 +26,7 @@ const SHOW_TILE_NUMBERS = false;
 // Déclaration des sons
 const victorySound = new Audio('victory.mp3');
 const flipSound = new Audio('flip-sound.mp3');
+const breakingSound = new Audio('breaking.mp3'); 
 let isFlipping = false;
 
 let currentLevel = 0;
@@ -2825,11 +2826,12 @@ function createExplosionEffect(hexagonData) {
         explosionCanvas.style.pointerEvents = 'none';
         explosionCanvas.style.zIndex = '1000';
         gameContainer.appendChild(explosionCanvas);
+	
 
         const ctx = explosionCanvas.getContext('2d');
         const particles = [];
         const startTime = Date.now();
-        const duration = 1500;
+        const duration = 2500;
 
         function easeOutExpo(x) {
             return x === 1 ? 1 : 1 - Math.pow(2, -10 * x);
@@ -2901,8 +2903,8 @@ function createExplosionEffect(hexagonData) {
                 startY: y,
                 targetX: x + Math.cos(angle) * distance,
                 targetY: y + Math.sin(angle) * distance,
-                rotation: Math.random() * Math.PI * 2,
-                rotationSpeed: (Math.random() - 0.5) * 0.3,
+				rotation: Math.random() * Math.PI / 4, // Réduit l'angle initial de rotation
+                rotationSpeed: (Math.random() - 0.5) * 0.08, // Réduit la vitesse de rotation
                 state: state,
                 size: rect.width / 2,
                 scale: 1,
@@ -3012,6 +3014,7 @@ function isWorldCompleted(currentLevel) {
 
 function showWorldCompletionMessage(worldNum) {
     return new Promise(resolve => {
+		
         const movesDisplay = document.getElementById('moves-display');
         const undoButton = document.getElementById('undo-btn');
         const hintButton = document.getElementById('hint-btn');
@@ -3298,7 +3301,7 @@ function showFinalVictoryScreen() {
             ctx.font = 'italic bold 30px Blouse, sans-serif';
             ctx.fillText('Congratulations!', centerX, 40);
             ctx.font = 'italic bold 24px Blouse, sans-serif';
-            ctx.fillText('You finished Untile v0.9.7b', centerX, 80);
+            ctx.fillText('You finished Untile v0.9.7d', centerX, 80);
 
             ctx.save();
             ctx.translate(centerX, centerY);
@@ -3391,8 +3394,15 @@ async function checkWinCondition() {
         try {
             await new Promise(resolve => setTimeout(resolve, 500));
             await blinkGrid();
+			
+			// Jouer le son de verre cassé
+			const breakingSound = new Audio('breaking.mp3');
+			breakingSound.volume = 0.1; // Réduire le volume à 30%
+			breakingSound.play().catch(error => {
+				console.log("Erreur lors de la lecture du son de cassure :", error);
+			});
             
-            // Capturer les positions immédiatement après le blink
+            // Capturer les positions des hexagones
             const hexagons = Array.from(hexagonContainer.querySelectorAll('.hexagon'));
             const hexagonData = hexagons.map(hexagon => {
                 const rect = hexagon.getBoundingClientRect();
@@ -3403,12 +3413,14 @@ async function checkWinCondition() {
                 };
             });
 
-            // Démarrer l'explosion immédiatement
+            // Démarrer l'animation du personnage après un court délai
+            setTimeout(() => {
+                moveCharacterToVictoryPosition();
+            }, 700); // Démarrer après 1 seconde
+
+            // Cacher le conteneur d'hexagones et démarrer l'explosion
             hexagonContainer.style.display = 'none';
             await createExplosionEffect(hexagonData);
-            
-            moveCharacterToVictoryPosition();
-            await new Promise(resolve => setTimeout(resolve, 1500));
             
             let starsEarned = currentLevel === 'random' ? 0 : calculateStarsEarned();
             
@@ -3427,7 +3439,6 @@ async function checkWinCondition() {
             hexagonContainer.innerHTML = '';
             
             if (result.action === 'next') {
-                // Vérifier si le niveau était déjà complété avec 3 étoiles
                 const wasAlreadyPerfect = (gameProgress.starsPerLevel[currentLevel] || 0) === 3;
                 
                 if (wasAlreadyPerfect) {
@@ -3441,7 +3452,6 @@ async function checkWinCondition() {
                     updateContinueHexButton(nextLevelToPlay);
                     
                     if (currentLevel !== 'random') {
-                        // Vérifier si un monde vient d'être complété
                         if (isWorldCompleted(currentLevel)) {
                             const worldNum = levels[currentLevel].world;
                             await showWorldCompletionMessage(worldNum);
@@ -3490,14 +3500,14 @@ async function checkWinCondition() {
                 hexagonContainer.style.display = '';
                 if (currentLevel === 'random') {
                     await resetCurrentRandomLevel();
-					updateInstructionVisibility()
+                    updateInstructionVisibility()
                     updateElementsVisibility();
                 } else {
                     await initLevel(currentLevel);
                 }
             } else if (result.action === 'newRandom') {
                 hexagonContainer.style.display = '';
-				updateInstructionVisibility()
+                updateInstructionVisibility()
                 await generateNewRandomLevel(storedRandomLevel.config);
                 await animateStarsToCounter(starsEarned);
             }
@@ -5135,7 +5145,7 @@ function moveCharacterToVictoryPosition() {
         character.style.transition = `
             top 1.5s cubic-bezier(0, 0, 0.9, 1),
             left 1.5s cubic-bezier(0, 0, 0.9, 1),
-            opacity 0.1s linear 1.4s
+            opacity 0.2s linear 1.2s
         `;
         character.style.top = `${position.top}px`;
         character.style.left = `${position.left}px`;
